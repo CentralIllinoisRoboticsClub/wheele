@@ -1,0 +1,1 @@
+SUBSYSTEM=="usb", ATTR{idVendor}=="1ffb", ATTR{idProduct}=="0089", MODE="0666", SYMLINK+="MicroMaestro", GROUP="dialout"
