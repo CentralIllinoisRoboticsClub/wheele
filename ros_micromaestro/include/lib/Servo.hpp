@@ -20,8 +20,8 @@ namespace CIRC
 				STEER_RR = 1,
 				STEER_LF = 2,
 				STEER_LR = 3,
-				ESC_L = 4,
-				ESC_R = 5, } ;
+				ESC_R = 4,
+				ESC_L = 5, } ;
 			void setPWM(unsigned short Min, unsigned short Center, unsigned short Max);
 			void setChannel(MMChannel ChannelIn);
 			void setCommand(unsigned short Cmd);

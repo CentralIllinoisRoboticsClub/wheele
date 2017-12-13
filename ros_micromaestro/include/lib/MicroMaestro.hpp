@@ -65,8 +65,8 @@ namespace CIRC
 			
 			
 			// Max and min degrees of steer servos
-			const int maxPosDeg =  90;
-			const int minNegDeg = -90;
+			const int maxPosDeg =  45;
+			const int minNegDeg = -45;
 
 			// Conversion factor of rad to degrees
 			const float radToDeg = 180/M_PI;
@@ -77,8 +77,8 @@ namespace CIRC
 
 			// Min Center and Max commands to be sent to servos.  Adjust/Tune where necessary
 			const unsigned short pulseDataRF[3] = {1030, 1500, 1840};		// Right-Front
-			const unsigned short pulseDataRR[3] = {1300, 1620, 2100};		// Right-Rear
-			const unsigned short pulseDataLF[3] = {1250, 1600, 2020};		// Left-Front
+			const unsigned short pulseDataRR[3] = {1300, 1620, 2000};		// Right-Rear
+			const unsigned short pulseDataLF[3] = {1250, 1600, 2000};		// Left-Front
 			const unsigned short pulseDataLR[3] = {1150, 1540, 1900};		// Left-Rear
 			const unsigned short pulseDataESC[3] = {1000, 1500, 2000};		// Left/Right ESC
 			

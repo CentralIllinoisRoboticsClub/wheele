@@ -37,7 +37,8 @@ namespace CIRC
 		// Wheel-E geometry constants
 		const float WHEELBASE_WIDTH = (23 * 2.54 / 100);		// Meters
 		const float WHEELBASE_LENGTH = (12.5 * 2.54 / 100);	// Meters
-		const float FULL_THROTTLE_SPEED = 8.0;	// Speed in m/s when throttle is 1.0
+		const float FULL_THROTTLE_SPEED = 16.0;	// Speed in m/s when throttle is 1.0
+        const float MAX_CURVATURE = 2.0; // Max curvature 1/m
 
 	  	ros::NodeHandle nh_; 
 	  	ros::Publisher pub_;

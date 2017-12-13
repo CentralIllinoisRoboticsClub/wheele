@@ -103,7 +103,7 @@ void MicroMaestro::cmdMicMasCallback(const wheele_msgs::ThrustSteer& drive_cmd)
     Servo_LF.setCommand(
 		clampPulse(
 			convertToPulse(
-				steerLeft, 
+				-steerLeft, 
 				(float)Servo_LF.getMin(), 
 				(float)Servo_LF.getCenter(), 
 				(float)Servo_LF.getMax(), 
@@ -115,7 +115,7 @@ void MicroMaestro::cmdMicMasCallback(const wheele_msgs::ThrustSteer& drive_cmd)
 	);
     Servo_LR.setCommand( clampPulse(
 		convertToPulse(
-			-steerLeft, 
+			steerLeft, 
 			(float)Servo_LR.getMin(), 
 			(float)Servo_LR.getCenter(), 
 			(float)Servo_LR.getMax(), 
@@ -132,7 +132,7 @@ void MicroMaestro::cmdMicMasCallback(const wheele_msgs::ThrustSteer& drive_cmd)
 	cout << "Steer right = " << steerRight << "\n\r";
     Servo_RF.setCommand( clampPulse(
 		convertToPulse(
-			steerRight, 
+			-steerRight, 
 			(float)Servo_RF.getMin(), 
 			(float)Servo_RF.getCenter(), 
 			(float)Servo_RF.getMax(), 
@@ -141,7 +141,7 @@ void MicroMaestro::cmdMicMasCallback(const wheele_msgs::ThrustSteer& drive_cmd)
 		serialInterface->getMaxChannelValue(), serialInterface->getMinChannelValue()) );
     Servo_RR.setCommand( clampPulse(
 		convertToPulse(
-			-steerRight, 
+			steerRight, 
 			(float)Servo_RR.getMin(), 
 			(float)Servo_RR.getCenter(), 
 			(float)Servo_RR.getMax(), 

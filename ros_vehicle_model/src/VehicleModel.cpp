@@ -55,7 +55,15 @@ void VehicleModel::driveCallback(const wheele_msgs::SpeedCurve& spdCrv)
     	
 	speed = spdCrv.speed;
 	curvature = spdCrv.curvature;
-	
+    if (curvature > MAX_CURVATURE)
+    {
+        curvature = MAX_CURVATURE;
+    }
+    else if(curvature < -MAX_CURVATURE)
+	{
+        curvature = -MAX_CURVATURE;
+    }
+    
 	calculateSteerThrottle(
 		speed, curvature,
 		&throttleLeft, &throttleRight, &steerLeft, &steerRight);
@@ -98,8 +106,8 @@ void VehicleModel::calculateSteerThrottle(
 	speedRight = speed * sqrt(pow(curvature * WHEELBASE_LENGTH/2, 2) + pow(1 + curvature * WHEELBASE_WIDTH / 2, 2));
 
 	// Calculate left/right wheel angles in radians
-	*steerLeft = atan(curvature * WHEELBASE_LENGTH / (2 - WHEELBASE_WIDTH));
-	*steerRight = atan(curvature * WHEELBASE_LENGTH / (2 + WHEELBASE_WIDTH));
+	*steerLeft = atan(curvature * WHEELBASE_LENGTH / (2 - WHEELBASE_WIDTH*curvature));
+	*steerRight = atan(curvature * WHEELBASE_LENGTH / (2 + WHEELBASE_WIDTH*curvature));
 
 	// Normalize wheel speeds to obtain left/right throttle values
 	*throttleLeft = speedLeft / FULL_THROTTLE_SPEED;
