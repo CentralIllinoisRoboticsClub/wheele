@@ -74,7 +74,7 @@ class CANConverter():
         read_count = 0
         #Does the code below run fast enough to ever actually clear the CAN buffer?
         #while(msg != None and  not new_all_data_flag):
-        while(msg != None and read_count < 6):
+        while(msg != None and not new_all_data_flag):
             if(msg.arbitration_id == 0x101): #RAW RC CMD, NOTE auto_cmd (left hz joystick) is not sent yet from wheele_ard_main.ino
                 #print msg.arbitration_id, convertCAN(msg.data, 2, 2)
                 self.raw_speed_cmd, self.raw_steer_cmd, self.raw_auto_cmd = self.convertCAN(msg.data,3,2)
@@ -124,11 +124,12 @@ class CANConverter():
     def update_odom(self):
         t2 = rospy.Time.now()
         t1 = self.prev_time
+        self.prev_time = t2
         dt = (t2-t1).to_sec()
         
         gyro_thresh_dps = 0.00
         g_bias_dps = 0.0
-        MAX_DTHETA_GYRO_dps = 200
+        MAX_DTHETA_GYRO_deg = 100
         BOT_WIDTH = (23.0 * 2.54 / 100.0) #meters
         COUNTS_PER_METER = 900.0
         
@@ -138,7 +139,7 @@ class CANConverter():
         delta_left_enc = self.get_delta_enc(self.left_enc, self.prev_left_enc)
         delta_right_enc = self.get_delta_enc(self.right_enc, self.prev_right_enc)
         
-        dtheta_enc_deg = float(delta_right_enc - delta_left_enc) / BOT_WIDTH * 180.0 / 3.14
+        dtheta_enc_deg = float(delta_right_enc - delta_left_enc) / BOT_WIDTH * 180.0 / 3.1416
         
         dmeters = float(delta_left_enc + delta_right_enc)/2.0 / COUNTS_PER_METER #900 counts/meter
         #print 'dmeters: ', dmeters
@@ -148,10 +149,10 @@ class CANConverter():
             dtheta_gyro_deg = 0
         else:
             gz_dps = gyroz_raw_dps+g_bias_dps
-            dtheta_gyro_deg = gz_dps*dt
+            dtheta_gyro_deg = gz_dps*dt*360.0/375.0 #HACK, WHY!!??
 
-        if(abs(dtheta_gyro_deg) > MAX_DTHETA_GYRO_dps):
-            #print 'no gyro'
+        if(abs(dtheta_gyro_deg) > MAX_DTHETA_GYRO_deg):
+            print 'no gyro'
             dtheta_deg = dtheta_enc_deg
         else:
             #print 'use gyro'
@@ -163,8 +164,8 @@ class CANConverter():
         #update bot position
         #self.bot.move(dmeters,dtheta_deg,use_gyro_flag)
         self.bot_deg = self.bot_deg + dtheta_deg
-        dx = dmeters*np.cos(self.bot_deg*3.14/180)
-        dy = dmeters*np.sin(self.bot_deg*3.14/180)
+        dx = dmeters*np.cos(self.bot_deg*3.1416/180)
+        dy = dmeters*np.sin(self.bot_deg*3.1416/180)
         self.botx = self.botx + dx
         self.boty = self.boty + dy
         
@@ -178,7 +179,7 @@ class CANConverter():
             self.time_sum = 0
         
         #bot.botx*100,bot.boty*100,bot.bot_deg
-        odom_quat = tf.transformations.quaternion_from_euler(0, 0, self.bot_deg*3.14/180.0)
+        odom_quat = tf.transformations.quaternion_from_euler(0, 0, self.bot_deg*3.1416/180.0)
         self.odom_broadcaster.sendTransform(
         (self.botx, self.boty, 0.),
         odom_quat,
@@ -196,7 +197,7 @@ class CANConverter():
 
         # set the velocity
         odom.child_frame_id = "base_link"
-        odom.twist.twist = Twist(Vector3(self.vx, 0, 0), Vector3(0, 0, gz_dps*3.14/180.0))
+        odom.twist.twist = Twist(Vector3(self.vx, 0, 0), Vector3(0, 0, gz_dps*3.1416/180.0))
 
         # publish the message
         self.odom_pub.publish(odom)
@@ -222,7 +223,7 @@ class CANConverter():
         #br.sendTransform((0,0,0),laser_quat,t2,"laser","base_link")
         #####
         
-        self.prev_time = t2
+        
         self.prev_left_enc = self.left_enc
         self.prev_right_enc = self.right_enc
 
