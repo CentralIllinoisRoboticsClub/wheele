@@ -26,6 +26,8 @@ class CANConverter():
         self.prev_time = rospy.Time.now()
         
         self.bus = can.interface.Bus(channel='can0', bustype='socketcan_ctypes')
+        # http://python-can.readthedocs.io/en/latest/interfaces/socketcan.html
+        
         #Also publish odom like in jeep_ros_comm.py
         #For now, just use encoder data for odom
         #need to add IMU to micro, send IMU data over CAN
@@ -244,6 +246,8 @@ class CANConverter():
         y = []
         b = 0
         for k in range(nVars):
+            #8*varSize will not always work. int(xx,8) is invalid. int(xx,24) may be invalid
+            #    if we want int(xx,8), just do int(xx,16), so perhaps we can always just do the max # bits? 32?
             y.append( int(binascii.hexlify(data[b:b+varSize]),8*varSize) - (256**varSize)/2)
             b = b+varSize
         return y
