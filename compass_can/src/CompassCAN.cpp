@@ -38,14 +38,8 @@ void CompassCAN::compassCallback(const can_msgs::Frame& frame)
     // look for 0x751 to start a scan reading
     if(id == 0x133)
     {
-        uint16_t raw1 = frame.data[0]<<8 | frame.data[1];
-        int16_t raw2 = raw1;
-        if(raw1 > 32767)
-        {
-            raw2 = raw1 - 32767;
-        }
-        //int16_t raw2 = raw1;
-        heading.data = (float)(raw2)/100.0;
+        float raw_heading = (float)(frame.data[0]<<8 | frame.data[1]);
+        heading.data = (raw_heading-32768)/100.0;
         heading_pub_.publish(heading);
     }
 }
