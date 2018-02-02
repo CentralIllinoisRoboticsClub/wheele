@@ -31,6 +31,19 @@ CompassCAN::~CompassCAN()
 {
 }
 
+int CompassCAN::convertCAN(const can_msgs::Frame& frame, float data_out[4], unsigned int nVars) //, unsigned int numBytesPerVar)
+{
+    if(nVars > 4)
+        nVars = 4;
+    
+    // change float[4] data_out to a std::vector<float>
+    for(unsigned int k=0; k<nVars; ++k)
+    {
+        data_out[k] = (float)(frame.data[2*k]<<8 | frame.data[2*k+1]) - 32768; //0-1; 2-3; 4-5; 6-7
+    }
+    return 0;
+}
+
 void CompassCAN::compassCallback(const can_msgs::Frame& frame)
 {    
     //can id
@@ -40,18 +53,18 @@ void CompassCAN::compassCallback(const can_msgs::Frame& frame)
     if(id == 0x133)
     {
         //canConvert common library function pending...
-        float raw_heading = (float)(frame.data[0]<<8 | frame.data[1])-32768;
-        heading.data = (raw_heading)/100.0;
+        float data_out[4];
+        unsigned int nVars = 4;
+        int res = convertCAN(frame, data_out, nVars);
+        
+        heading.data = (data_out[0])/100.0;
         heading_pub_.publish(heading);
         
         //update x,y,z order in arduino to match our x,y,z? Or just do it here?
-        float raw_magX = (float)(frame.data[2]<<8 | frame.data[3])-32768;
-        float raw_magY = (float)(frame.data[4]<<8 | frame.data[5])-32768;
-        float raw_magZ = (float)(frame.data[6]<<8 | frame.data[7])-32768;
         magXYZ.header.stamp = frame.header.stamp;
-        magXYZ.vector.x = raw_magX/100.0;
-        magXYZ.vector.y = raw_magY/100.0;
-        magXYZ.vector.z = raw_magZ/100.0;
+        magXYZ.vector.x = data_out[1]/100.0;
+        magXYZ.vector.y = data_out[2]/100.0;
+        magXYZ.vector.z = data_out[3]/100.0;
         mag_pub_.publish(magXYZ);
     }
 }
