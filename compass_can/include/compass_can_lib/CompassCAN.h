@@ -22,12 +22,14 @@ class CompassCAN
 
         ros::NodeHandle nh_;
         ros::Publisher heading_pub_;
+        ros::Publisher mag_pub_;
         ros::Subscriber can_sub_;
         
         uint8_t num_detections; //number of detections given in 0x751
         uint8_t det_count; //counter to check we have the expected scan data
         
         std_msgs::Float32 heading;
+        geometry_msgs::Vector3Stamped magXYZ;
 };
 
 #endif
