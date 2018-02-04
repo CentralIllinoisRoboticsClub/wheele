@@ -115,8 +115,8 @@ class CANConverter():
         elif(self.raw_steer_cmd < 900 or self.raw_steer_cmd > 2000):
             cmd.curvature = 0
         else:
-            cmd.speed = (self.raw_speed_cmd-1350)*6.0/370.0
-            cmd.curvature = (self.raw_steer_cmd-1380)*2.5/370.0
+            cmd.speed = (self.raw_speed_cmd-1350)*10.0/370.0 #raw command is 1350 +/- 370
+            cmd.curvature = (self.raw_steer_cmd-1380)*2.5/370.0 #raw command is 1380 +/- 370
         if(math.fabs(cmd.speed) < 0.5):
             cmd.speed = 0
             
