@@ -9,7 +9,10 @@ http://henrysbench.capnfatz.com/henrys-bench/arduino-projects-tips-and-more/ardu
 
 ## Dependencies
 ### (external) ROS packages used:
-NONE at the moment I believe. Possible future dependencies:
+
+`sudo apt-get install ros-kinetic-ros-canopen`
+
+Possible future dependencies:
 ```
 cd catkin_ws/src/
 git clone https://github.com/scanse/sweep-ros.git`
@@ -24,6 +27,8 @@ sudo cmake --build . --target install
 sudo ldconfig
 ```
 `sudo apt-get install ros-kinetic-pointcloud-to-laserscan`
+`sudo apt-get install ros-kinetic-navigation`
+`sudo apt-get install ros-kinetic-amcl`
 
 ### Arduino libraries used:
 (may need to move .h and .cpp files up one level to top level lib folder)
