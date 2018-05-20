@@ -20,6 +20,7 @@ class CANConverter():
         rospy.init_node('can_converter')
         self.cmd_pub = rospy.Publisher('wheele_cmd_vel', SpeedCurve, queue_size=1)
         self.batt_pub = rospy.Publisher('wheele_batt', Int16, queue_size = 1)
+        self.auto_mode_pub = rospy.Publisher('auto_mode', Int16, queue_size = 1)
         
         self.odom_pub = rospy.Publisher('odom', Odometry, queue_size=5)
         self.odom_broadcaster = tf.TransformBroadcaster()
@@ -42,6 +43,7 @@ class CANConverter():
         self.raw_speed_cmd = 0
         self.raw_steer_cmd = 0
         self.raw_auto_cmd = 0
+        self.auto_stop_flag = True
         
         self.gyroz_degx100 = 0
         
@@ -119,8 +121,19 @@ class CANConverter():
             cmd.curvature = (self.raw_steer_cmd-1380)*2.5/370.0 #raw command is 1380 +/- 370
         if(math.fabs(cmd.speed) < 0.5):
             cmd.speed = 0
-            
-        self.cmd_pub.publish(cmd)      
+        
+        if(self.raw_auto_cmd < 1600):
+            self.cmd_pub.publish(cmd)
+            self.auto_stop_flag = True
+        else:
+            if(self.auto_stop_flag):
+                cmd.speed = 0
+                self.cmd_pub.publish(cmd)
+                self.auto_stop_flag = False
+        
+        auto_mode_msg = Int16()
+        auto_mode_msg.data = self.raw_auto_cmd
+        self.auto_mode_pub.publish(auto_mode_msg)
         #print 'Published cmd'      
                 
     def update_odom(self):

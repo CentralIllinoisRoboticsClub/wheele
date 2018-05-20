@@ -1,4 +1,8 @@
-<launch>
+﻿<launch>
+  <!-- Run the map server -->
+  <arg name="map_file" default="/home/circ/Downloads/ros_playback_helpers/big_run_map1u_clean_append6.yaml"/>
+  <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)" />
+
   <node pkg="tf" type="static_transform_publisher" name="base_frame_laser" args="0 0 0 0.0 0 0 /base_link /laser 10" />
 
   <param name="max_stream_flag" value = "false" type = "bool" />
@@ -9,4 +13,9 @@
   <node pkg="can2ros_wheele" type = "can2ros.py" name = "can2odom" />
   <node pkg="ros_vehicle_model" type = "vehicle_model" name = "veh_model" />
   <node pkg="ros_micromaestro" type = "micromaestro" name = "micro_maestro" />
+
+  <node pkg="compass_can" type = "compass_stream" name = "compass_stream" />
+  <node name="nmea_serial_driver" pkg="nmea_navsat_driver" type="nmea_serial_driver" args="_port:=/dev/GPS_ultimate _baud:=57600" />
+  <node pkg="gps_modular" type="gps_transform.py" name="gps_transform" output="screen"/>
+  <include file="$(find circ_2dnav)/launch/circ_amcl_diff.launch" />
 </launch>
