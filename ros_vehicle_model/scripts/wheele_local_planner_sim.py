@@ -100,9 +100,14 @@ class PathController():
                         break
                     ind1 = ind2
                     k += 1
-                    
-                wp_step = max(int(path_dist/2.0), 1)
+                
+                step_size_meters = 2.0    
+                wp_step = int(step_size_meters/path_dist * nPose)
+                if(wp_step >= nPose):
+                    wp_step = 1
                 init = wp_step
+                print "path dist: ", path_dist
+                print "wp step: ", wp_step
             for k in xrange(init,nPose,wp_step):
                 wp[0] = poses[k].pose.position.x
                 wp[1] = poses[k].pose.position.y
