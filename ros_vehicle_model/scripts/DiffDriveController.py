@@ -10,8 +10,8 @@ class DiffDriveController():
     def __init__(self, max_speed, max_omega):
         # TODO for Student: Specify these parameters
         self.kp= 0.5 #0.3
-        self.ka= 1.0 #4
-        self.kb= 0.01#-0.01 #-0.01
+        self.ka= 2.0 #4
+        self.kb= 0.001 #0.01
         self.MAX_SPEED = max_speed
         self.MAX_OMEGA = max_omega
         self.target_rho = 1.0

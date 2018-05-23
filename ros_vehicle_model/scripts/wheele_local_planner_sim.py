@@ -8,6 +8,7 @@ from std_msgs.msg import Int16
 from nav_msgs.msg import Odometry, Path
 from tf.transformations import euler_from_quaternion, quaternion_from_euler
 import tf
+from sensor_msgs.msg import LaserScan #force robot to at least slow down, stop, backup when close to obstacles
 
 from DiffDriveController import DiffDriveController
 
@@ -19,14 +20,15 @@ class PathController():
         rospy.Subscriber('auto_mode', Int16, self.auto_mode_callback, queue_size = 1)
         rospy.Subscriber('odom', Odometry, self.odom_callback, queue_size = 1)
         rospy.Subscriber('/move_base/GlobalPlanner/plan', Path, self.path_callback, queue_size = 1)
+        rospy.Subscriber('/scan', LaserScan, self.scan_callback, queue_size = 1)
         #<remap from="topic_a_temp" to="/ns1/topic_a">
         
         self.auto_mode = 1700
         self.vx = 0.0
         self.cum_err = 0
         
-        MAX_SPEED = 2.0
-        MAX_OMEGA = 3.0
+        MAX_SPEED = 1.0
+        MAX_OMEGA = 2.0
         self.diff_drive_controller = DiffDriveController(MAX_SPEED, MAX_OMEGA)
         
         x_i = 0.
@@ -41,9 +43,18 @@ class PathController():
         self.w = 0.0
         
         self.tf_listener = tf.TransformListener()
+        self.reverse_flag = False
     
     def auto_mode_callback(self, data):
         self.auto_mode = data
+        
+    def scan_callback(self, data):
+        ranges = data.ranges
+        min_range = min(ranges[7:9])
+        if(min_range < 2.5):
+            self.reverse_flag = True
+        elif(self.reverse_flag and min_range > 3.5):
+            self.reverse_flag = False
     
     def odom_callback(self,odom):
         # This odom pose is in the odom frame, we want the pose in the map frame
@@ -114,7 +125,7 @@ class PathController():
     def execute_plan(self):
         # Update robot pose state from tf listener
         try:
-            (trans,quat) = self.tf_listener.lookupTransform('/map', '/base_link', rospy.Time(0))
+            (trans,quat) = self.tf_listener.lookupTransform('/odom', '/base_link', rospy.Time(0))
             self.state[0] = trans[0]
             self.state[1] = trans[1]
             #quat_list = [quat.x, quat.y, quat.z, quat.w]
@@ -132,13 +143,17 @@ class PathController():
                 #print "w: ", w
                 print "state: ", self.state
                 print "goal: ", self.goal
-        elif( (self.goal_reached or abs(alpha) > 3.14/2) and len(self.waypoints) > 0):
+        elif( len(self.waypoints) > 0 and (self.goal_reached) ): # or abs(alpha) > 3.14/2) ):
             self.goal = self.waypoints.pop(0)
             print "wp goal: ", self.goal
             self.goal_reached = False
         else:
             self.v = 0.
             self.w = 0.
+            
+        if(self.reverse_flag):
+            self.v = -1.0
+            #self.w = 0.0
         
         #PI control for desired linear speed v
         # controller will output an offset command to add to v
