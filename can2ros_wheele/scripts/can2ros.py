@@ -250,29 +250,7 @@ class CANConverter():
         odom.twist.twist = Twist(Vector3(self.vx, 0, 0), Vector3(0, 0, gz_dps*3.1416/180.0))
 
         # publish the message
-        self.odom_pub.publish(odom)
-        
-        ##### USE IMU TO PUBLISH TRANSFORM BETWEEN LASER AND BASE
-        br = tf.TransformBroadcaster()
-        if(abs(accx) < 2 and abs(accy) < 2):
-            try:
-                roll_rad = math.asin(accx/9.81) + 0.0
-                pitch_rad = math.asin(accy/9.81) + 0.0
-            except:
-                roll_rad = self.roll_rad
-                pitch_rad = self.pitch_rad
-                print('asin error for roll or pitch')
-        else:
-            roll_rad = self.roll_rad
-            pitch_rad = self.pitch_rad
-            print('accx,y above 2 m/s^2')
-                
-        self.roll_rad = 0.99*self.roll_rad + 0.01*roll_rad
-        self.pitch_rad = 0.99*self.pitch_rad + 0.01*pitch_rad
-        laser_quat = tf.transformations.quaternion_from_euler(self.roll_rad, self.pitch_rad, 0)
-        br.sendTransform((0,0,0),laser_quat,t2,"laser","base_link")
-        #####
-        
+        self.odom_pub.publish(odom)        
         
         self.prev_left_enc = self.left_enc
         self.prev_right_enc = self.right_enc
