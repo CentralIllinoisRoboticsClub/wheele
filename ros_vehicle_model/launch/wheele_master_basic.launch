@@ -1,0 +1,17 @@
+﻿<launch>
+  <!-- DISABLE IF USING DYNAMIC tf between laser and base (see can2ros) -->
+  <!-- <node pkg="tf" type="static_transform_publisher" name="base_frame_laser" args="0 0 0 0.0 0 0 /base_link /laser 10" /> -->
+
+  <param name="max_stream_flag" value = "false" type = "bool" />
+  <param name="rate_hz" value="10" type="int" />
+  <node pkg="leddar_can" type = "leddar_stream" name = "leddar_scan" />
+  
+  <node pkg="socketcan_bridge" type = "socketcan_bridge_node" name = "can_bridge" />
+  <node pkg="can2ros_wheele" type = "can2ros.py" name = "can2odom" output="screen"/>
+  <node pkg="ros_vehicle_model" type = "vehicle_model" name = "veh_model" />
+  <node pkg="ros_micromaestro" type = "micromaestro" name = "micro_maestro" />
+
+  <node pkg="compass_can" type = "compass_stream" name = "compass_stream" />
+  <node name="nmea_serial_driver" pkg="nmea_navsat_driver" type="nmea_serial_driver" args="_port:=/dev/GPS_ultimate _baud:=57600" />
+  <node pkg="gps_modular" type="gps_transform.py" name="gps_transform" output="screen"/>
+</launch>

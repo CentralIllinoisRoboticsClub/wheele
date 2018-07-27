@@ -1,0 +1,6 @@
+<launch>
+  <node pkg="tf" type="static_transform_publisher" name="base_frame_laser" args="0 0 0 0.0 0 0 /base_link /laser 10" />
+  <node pkg="tf" type="static_transform_publisher" name="odom_to_map" args="5.0 0 0 0.0 0 0 /map /odom 10" />
+  
+  <node pkg="can2ros_wheele" type = "sim_wheele.py" name = "sim_wheele" />
+</launch>

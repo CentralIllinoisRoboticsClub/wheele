@@ -8,7 +8,7 @@ from std_msgs.msg import Int16
 
 from nav_msgs.msg import Odometry
 import tf
-from geometry_msgs.msg import Twist, Quaternion, Point, Pose, Vector3
+from geometry_msgs.msg import Twist, Quaternion, Point, Pose, Vector3, Vector3Stamped
 
 import time
 import can
@@ -17,7 +17,13 @@ import binascii
 
 class CANConverter():
     def __init__(self):
+        self.roll_rad = 0
+        self.pitch_rad = 0
+        self.N_roll = 0
+        
         rospy.init_node('can_converter')
+        rospy.Subscriber('bno_magXYZ', Vector3Stamped, self.accelIMU_callback, queue_size=2)
+        
         self.cmd_pub = rospy.Publisher('wheele_cmd_vel', SpeedCurve, queue_size=1)
         self.batt_pub = rospy.Publisher('wheele_batt', Int16, queue_size = 1)
         self.auto_mode_pub = rospy.Publisher('auto_mode', Int16, queue_size = 1)
@@ -66,8 +72,37 @@ class CANConverter():
         
         self.bot_deg = 0
         self.botx = 0
-        self.boty = 0    
+        self.boty = 0
 
+    def accelIMU_callback(self, data):
+        accx = -data.vector.y
+        accy = data.vector.x
+        ##### USE IMU TO PUBLISH TRANSFORM BETWEEN LASER AND BASE
+        br = tf.TransformBroadcaster()
+        if(abs(accx) < 3 and abs(accy) < 3):
+            try:
+                roll_rad = math.asin(accx/9.81) +0.0
+                pitch_rad = math.asin(accy/9.81) +0.0
+            except:
+                roll_rad = self.roll_rad
+                pitch_rad = self.pitch_rad
+                print('asin error for roll or pitch')
+        else:
+            roll_rad = self.roll_rad
+            pitch_rad = self.pitch_rad
+            print('accx,y above 3 m/s^2')
+                
+        self.roll_rad = 0.9*self.roll_rad + 0.1*roll_rad
+        self.pitch_rad = 0.9*self.pitch_rad + 0.1*pitch_rad
+        self.N_roll += 1
+        if(self.N_roll >= 10):
+            print('roll rad: ', self.roll_rad, ', pitch rad: ', self.pitch_rad)
+            self.N_roll = 0
+        
+        t2 = rospy.Time.now()
+        laser_quat = tf.transformations.quaternion_from_euler(self.roll_rad, self.pitch_rad, 0)
+        br.sendTransform((0,0,0.3),laser_quat,t2,"laser","base_link")
+        #####
 
     def update_CAN(self):
         msg = self.bus.recv(0.0)
@@ -218,24 +253,24 @@ class CANConverter():
         self.odom_pub.publish(odom)
         
         ##### USE IMU TO PUBLISH TRANSFORM BETWEEN LASER AND BASE
-        #br = tf.TransformBroadcaster()
-        #if(abs(accx) < 2 and abs(accy) < 2):
-        #    try:
-        #        roll_rad = math.asin(accx/9.81) + 0.05 + 0.015
-        #        pitch_rad = math.asin(accy/9.81) -0.055 -0.017
-        #    except:
-        #        roll_rad = self.roll_rad
-        #        pitch_rad = self.pitch_rad
-        #        print('asin error for roll or pitch')
-        #else:
-        #    roll_rad = self.roll_rad
-        #    pitch_rad = self.pitch_rad
-        #    print('accx,y above 2 m/s^2')
+        br = tf.TransformBroadcaster()
+        if(abs(accx) < 2 and abs(accy) < 2):
+            try:
+                roll_rad = math.asin(accx/9.81) + 0.0
+                pitch_rad = math.asin(accy/9.81) + 0.0
+            except:
+                roll_rad = self.roll_rad
+                pitch_rad = self.pitch_rad
+                print('asin error for roll or pitch')
+        else:
+            roll_rad = self.roll_rad
+            pitch_rad = self.pitch_rad
+            print('accx,y above 2 m/s^2')
                 
-        #self.roll_rad = 0.99*self.roll_rad + 0.01*roll_rad
-        #self.pitch_rad = 0.99*self.pitch_rad + 0.01*pitch_rad
-        #laser_quat = tf.transformations.quaternion_from_euler(self.roll_rad, self.pitch_rad, 0)
-        #br.sendTransform((0,0,0),laser_quat,t2,"laser","base_link")
+        self.roll_rad = 0.99*self.roll_rad + 0.01*roll_rad
+        self.pitch_rad = 0.99*self.pitch_rad + 0.01*pitch_rad
+        laser_quat = tf.transformations.quaternion_from_euler(self.roll_rad, self.pitch_rad, 0)
+        br.sendTransform((0,0,0),laser_quat,t2,"laser","base_link")
         #####
         
         
