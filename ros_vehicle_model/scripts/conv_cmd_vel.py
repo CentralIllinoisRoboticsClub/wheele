@@ -18,9 +18,16 @@ class CMDConverter():
         self.auto_mode = 1300
         self.vx = 0.0
         self.cum_err = 0
+        self.auto_count = 0
     
     def auto_mode_callback(self, data):
         self.auto_mode = data
+        if(self.auto_mode > 1600):
+            self.auto_count += 1
+        else:
+            self.auto_count -= 1
+        if(self.auto_count < 0):
+            self.auto_count = 0
     
     def odom_callback(self,odom):
         self.vx = odom.twist.twist.linear.x
@@ -59,7 +66,7 @@ class CMDConverter():
         
         spdCrv.speed = Ks*v + out
         
-        if(self.auto_mode > 1600):
+        if(self.auto_count > 20):
             self.cmd_pub.publish(spdCrv)
 
 if __name__ == '__main__':
