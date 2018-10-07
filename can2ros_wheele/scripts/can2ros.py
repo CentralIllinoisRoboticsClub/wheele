@@ -9,6 +9,7 @@ from std_msgs.msg import Int16
 from nav_msgs.msg import Odometry
 import tf
 from geometry_msgs.msg import Twist, Quaternion, Point, Pose, Vector3, Vector3Stamped
+from sensor_msgs.msg import Imu
 
 import time
 import can
@@ -22,13 +23,14 @@ class CANConverter():
         self.N_roll = 0
         
         rospy.init_node('can_converter')
-        rospy.Subscriber('bno_magXYZ', Vector3Stamped, self.accelIMU_callback, queue_size=2)
+        rospy.Subscriber('imu', Imu, self.accelIMU_callback, queue_size=2)
         
         self.cmd_pub = rospy.Publisher('wheele_cmd_vel', SpeedCurve, queue_size=1)
         self.batt_pub = rospy.Publisher('wheele_batt', Int16, queue_size = 1)
         self.auto_mode_pub = rospy.Publisher('auto_mode', Int16, queue_size = 1)
         
         self.odom_pub = rospy.Publisher('odom', Odometry, queue_size=5)
+        self.odom_ekf_pub = rospy.Publisher('odom_ekf', Odometry, queue_size=5)
         self.odom_broadcaster = tf.TransformBroadcaster()
         self.prev_time = rospy.Time.now()
         
@@ -75,14 +77,14 @@ class CANConverter():
         self.boty = 0
 
     def accelIMU_callback(self, data):
-        accx = -data.vector.y
-        accy = data.vector.x
+        accx = data.linear_acceleration.x
+        accy = data.linear_acceleration.y
         ##### USE IMU TO PUBLISH TRANSFORM BETWEEN LASER AND BASE
         br = tf.TransformBroadcaster()
         if(abs(accx) < 3 and abs(accy) < 3):
             try:
-                roll_rad = math.asin(accx/9.81) +0.0
-                pitch_rad = math.asin(accy/9.81) +0.0
+                roll_rad = math.asin(accy/9.81) +0.0
+                pitch_rad = math.asin(-accx/9.81) +0.0
             except:
                 roll_rad = self.roll_rad
                 pitch_rad = self.pitch_rad
@@ -121,8 +123,8 @@ class CANConverter():
                 read_count = read_count + 1
                 #print('read cmd')
             elif(msg.arbitration_id == 0x131): #GYRO
-                gyroz_list = self.convertCAN(msg.data,1,2)
-                self.gyroz_degx100 = gyroz_list[0]
+                gyro_list = self.convertCAN(msg.data,3,2)
+                self.gyroz_degx100 = gyro_list[2]
                 new_gyro_data_flag = True
                 read_count = read_count + 1
                 #print('read gyro')
@@ -249,8 +251,15 @@ class CANConverter():
         odom.child_frame_id = "base_link"
         odom.twist.twist = Twist(Vector3(self.vx, 0, 0), Vector3(0, 0, gz_dps*3.1416/180.0))
 
+        # odom twist covariance
+        odom.twist.covariance[0] = 0.001 #vx
+        odom.twist.covariance[7] = 1.e-9 #vy
         # publish the message
-        self.odom_pub.publish(odom)        
+        self.odom_pub.publish(odom)
+        
+        odom.header.frame_id = "odom"
+        odom.child_frame_id = "base_link_ekf"
+        self.odom_ekf_pub.publish(odom)        
         
         self.prev_left_enc = self.left_enc
         self.prev_right_enc = self.right_enc
