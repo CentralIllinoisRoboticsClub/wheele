@@ -21,17 +21,26 @@ class CANConverter():
         self.roll_rad = 0
         self.pitch_rad = 0
         self.N_roll = 0
+        self.heading_init_count = 0
+        self.mag_heading_deg = 0
+        self.odom_heading_deg = 0
+        self.map_bc = tf.TransformBroadcaster()
+        
+        self.tf_listener = tf.TransformListener()
         
         rospy.init_node('can_converter')
         rospy.Subscriber('imu', Imu, self.accelIMU_callback, queue_size=2)
+        rospy.Subscriber('mag_imu', Imu, self.magIMU_callback, queue_size=2)
+        rospy.Subscriber('gps_pose',Vector3Stamped, self.gps_callback, queue_size=5)
         
         self.cmd_pub = rospy.Publisher('wheele_cmd_vel', SpeedCurve, queue_size=1)
         self.batt_pub = rospy.Publisher('wheele_batt', Int16, queue_size = 1)
         self.auto_mode_pub = rospy.Publisher('auto_mode', Int16, queue_size = 1)
         
         self.odom_pub = rospy.Publisher('odom', Odometry, queue_size=5)
-        self.odom_ekf_pub = rospy.Publisher('odom_ekf', Odometry, queue_size=5)
+        #self.odom_ekf_pub = rospy.Publisher('odom_ekf', Odometry, queue_size=5)
         self.odom_broadcaster = tf.TransformBroadcaster()
+        
         self.prev_time = rospy.Time.now()
         
         self.bus = can.interface.Bus(channel='can0', bustype='socketcan_ctypes')
@@ -71,11 +80,48 @@ class CANConverter():
         self.dist_sum = 0
         self.time_sum = 0
         self.vx = 0
-        
+
         self.bot_deg = 0
         self.botx = 0
         self.boty = 0
 
+    def gps_callback(self,data):
+        x = data.vector.x
+        y = data.vector.y
+        gps_theta = math.atan2(y,x)
+        (trans,quat) = self.tf_listener.lookupTransform('/map', '/base_link', rospy.Time(0))
+        xb = trans[0]
+        yb = trans[1]
+        if(self.botx**2 + self.boty**2 > 20.**2):
+            print "Updating odom heading based on gps"
+            bot_theta = math.atan2(yb,xb)
+            diff_theta = gps_theta - bot_theta
+            self.odom_heading_deg += diff_theta*180./3.14
+        
+
+    def magIMU_callback(self, data):
+        quaternion = (data.orientation.x,
+            data.orientation.y,
+            data.orientation.z,
+            data.orientation.w)
+        [roll,pitch,yaw] = tf.transformations.euler_from_quaternion(quaternion)
+        self.mag_heading_deg = yaw*180./3.14159
+        if(self.heading_init_count < 10):
+            self.heading_init_count += 1
+            if(self.heading_init_count == 1):
+                self.odom_heading_deg = self.mag_heading_deg
+            else:
+                self.odom_heading_deg = (self.odom_heading_deg*(self.heading_init_count-1) + self.mag_heading_deg)/self.heading_init_count
+                print "init odom deg: ", self.odom_heading_deg
+        # map to odom
+        quat = tf.transformations.quaternion_from_euler(0, 0, self.odom_heading_deg*3.1416/180.0)
+        self.map_bc.sendTransform(
+        (0, 0, 0.),
+        quat,
+        data.header.stamp,
+        "odom",
+        "map"
+        )
     def accelIMU_callback(self, data):
         accx = data.linear_acceleration.x
         accy = data.linear_acceleration.y
@@ -98,7 +144,7 @@ class CANConverter():
         self.pitch_rad = 0.9*self.pitch_rad + 0.1*pitch_rad
         self.N_roll += 1
         if(self.N_roll >= 10):
-            print('roll rad: ', self.roll_rad, ', pitch rad: ', self.pitch_rad)
+            #print('roll rad: ', self.roll_rad, ', pitch rad: ', self.pitch_rad)
             self.N_roll = 0
         
         t2 = rospy.Time.now()
@@ -257,9 +303,9 @@ class CANConverter():
         # publish the message
         self.odom_pub.publish(odom)
         
-        odom.header.frame_id = "odom"
-        odom.child_frame_id = "base_link_ekf"
-        self.odom_ekf_pub.publish(odom)        
+        #odom.header.frame_id = "odom_ekf"
+        #odom.child_frame_id = "base_link_ekf"
+        #self.odom_ekf_pub.publish(odom)        
         
         self.prev_left_enc = self.left_enc
         self.prev_right_enc = self.right_enc
