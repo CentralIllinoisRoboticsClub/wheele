@@ -7,9 +7,11 @@
 
   <!-- <node pkg="tf" type="static_transform_publisher" name="base_frame_laser" args="0 0 0 0.0 0 0 /base_link /laser 10" /> -->
 
-  <param name="max_stream_flag" value = "false" type = "bool" />
-  <param name="rate_hz" value="10" type="int" />
-  <node pkg="leddar_can" type = "leddar_stream" name = "leddar_scan" />
+  <node pkg="leddar_can" type = "leddar_stream" name = "leddar_scan" output="screen">
+    <param name="max_stream_flag" value = "false" type = "bool" />
+    <param name="rate_hz" value="10" type="int" />
+    <param name="min_amp_offset" value="0.0" />
+  </node>
   
   <node pkg="socketcan_bridge" type = "socketcan_bridge_node" name = "can_bridge" />
   <node pkg="can2ros_wheele" type = "can2ros.py" name = "can2odom" output="screen" />
@@ -24,6 +26,8 @@
 
   <node pkg="ros_vehicle_model" type="conv_cmd_vel.py" name="conv_cmd_vel" />
   <node pkg="ros_vehicle_model" type="wheele_local_planner_sim.py" name="wheele_planner" /> -->
+
+  <include file="$(find ros_vehicle_model)/launch/camera_test.launch" />
 
 <!-- Remove AMCL
   <include file="$(find circ_2dnav)/launch/circ_amcl_diff.launch" />

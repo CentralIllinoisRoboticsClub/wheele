@@ -1,0 +1,27 @@
+<launch>
+  <!-- <include file="$(find sweep_ros)/launch/gmap_mod_params.launch" /> -->
+  <!-- <node pkg="usb_cam" type="usb_cam_node" name="camera">
+    <rosparam>
+      video_device: /dev/video0
+      image_width: 160
+      image_height: 120
+      pixel_format: uyvy
+      framerate: 15
+    </rosparam>
+  </node> -->
+
+  <!-- <include file="$(find cone_detector)/launch/morphology_object_tracking.launch" /> -->
+
+  <node pkg="cv_camera" type="cv_camera_node" name="camera">
+    <rosparam>
+      device_id: 0
+      image_width: 640
+      image_height: 480
+      frame_id: camera
+      rate: 15
+      image/compressed/jpeg_quality: 20
+    </rosparam>
+    <!-- <param name="image/compressed/jpeg_quality" type="int" value="50"/> -->
+  </node>
+
+</launch>
