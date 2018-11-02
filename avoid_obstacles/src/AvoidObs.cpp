@@ -20,6 +20,7 @@ AvoidObs::AvoidObs()
     //Topic you want to subscribe
     // leddarCallback will run every time ros sees the topic /received_messages
     scan_sub_ = nh_.subscribe("scan", 50, &AvoidObs::scanCallback, this); //receive laser scan
+    odom_sub_ = nh_.subscribe("odom", 10, &AvoidObs::odomCallback, this);
     nh_p  = ros::NodeHandle("~");
     nh_p.param("plan_rate_hz", plan_rate_, 1); //set in avoid_obs.launch
     nh_p.param("map_res_m", map_res_, 0.5);
@@ -50,6 +51,17 @@ AvoidObs::AvoidObs()
     path.header.stamp = ros::Time::now();
     path.header.frame_id = "odom";
     //path.poses.push_back(geometry_msgs::PoseStamped)
+
+    //test Astar setup
+    geometry_msgs::Pose start, goal;
+    start.position.x = 0;
+    start.position.y = 0;
+    start.orientation.w = 1.0;
+    goal.position.x = 30;
+    goal.position.y = 30;
+    goal.orientation.w = 1.0;
+    astar.get_path(start, goal, costmap, path);
+
 }
 
 AvoidObs::~AvoidObs(){}
@@ -77,14 +89,29 @@ void AvoidObs::update_cell(float x, float y, int val)
 
 bool AvoidObs::update_plan()
 {
-	path.poses.clear();
+	/*path.poses.clear();
 	geometry_msgs::PoseStamped wp;
 	wp.pose.position.x = 5.0;
 	wp.pose.position.y = 5.0;
 	path.poses.push_back(wp);
-	wp.pose.position.x = 15.0;
-	path.poses.push_back(wp);
+	*/
+
+	geometry_msgs::Pose start, goal;
+	start.position.x = 0;
+	start.position.y = 0;
+	start.orientation.w = 1.0;
+	goal.position.x = 30;
+	goal.position.y = 30;
+	goal.orientation.w = 1.0;
+	astar.get_path(bot_pose, goal, costmap, path);
+	path.header.stamp = ros::Time::now();
 	path_pub_.publish(path);
+}
+
+void AvoidObs::odomCallback(const nav_msgs::Odometry& odom)
+{
+	bot_pose.position = odom.pose.pose.position;
+	bot_pose.orientation = odom.pose.pose.orientation;
 }
 
 void AvoidObs::scanCallback(const sensor_msgs::LaserScan& scan) //use a point cloud instead, use laser2pc.launch
