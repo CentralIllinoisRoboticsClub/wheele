@@ -57,8 +57,8 @@ AvoidObs::AvoidObs()
     start.position.x = 0;
     start.position.y = 0;
     start.orientation.w = 1.0;
-    goal.position.x = 30;
-    goal.position.y = 30;
+    goal.position.x = 20;
+    goal.position.y = -38;
     goal.orientation.w = 1.0;
     astar.get_path(start, goal, costmap, path);
 
@@ -100,8 +100,8 @@ bool AvoidObs::update_plan()
 	start.position.x = 0;
 	start.position.y = 0;
 	start.orientation.w = 1.0;
-	goal.position.x = 30;
-	goal.position.y = 30;
+	goal.position.x = 20;
+	goal.position.y = -38;
 	goal.orientation.w = 1.0;
 	astar.get_path(bot_pose, goal, costmap, path);
 	path.header.stamp = ros::Time::now();

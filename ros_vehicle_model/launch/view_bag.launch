@@ -26,10 +26,12 @@
 
   <!-- <include file="$(find jeep_2dnav)/launch/jeep_amcl_diff.launch" /> -->
 
+  <!--
   <node type ="laser2pc_node" pkg="bag_tools" name="laser2pc" output="screen" >
     <param name="pc_frame" value="map" />
     <param name="scan_topic" value="/scan" />
   </node>
+  -->
 
   <node pkg="avoid_obstacles" type="avoid_obs" name="avoid_obs" output="screen">
     <param name="plan_rate_hz" value="1.0" />

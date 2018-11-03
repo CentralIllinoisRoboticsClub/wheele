@@ -38,6 +38,8 @@ private:
 
 	int is_obs(nav_msgs::OccupancyGrid map, int ix, int iy);
 
+	int is_obs2(nav_msgs::OccupancyGrid map, int ix, int iy);
+
 	int num_theta;
 
 	float map_x0, map_y0, map_res;

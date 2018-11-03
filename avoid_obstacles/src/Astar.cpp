@@ -69,12 +69,39 @@ bool Astar::get_map_indices(float x, float y, int& ix, int& iy)
 
 int Astar::is_obs(nav_msgs::OccupancyGrid map, int ix, int iy)
 {
-	if(map.data[iy*NUM_COLS + ix] < obs_thresh)
-		return 0;
-	else
+	int ind = iy*NUM_COLS + ix;
+	if(ind > map.data.size())
 		return 1;
+	if(map.data[iy*NUM_COLS + ix] > obs_thresh)
+	{
+		return 1;
+	}
+	return 0;
 }
-
+int Astar::is_obs2(nav_msgs::OccupancyGrid map, int ix, int iy)
+{
+	if(is_obs(map, ix, iy) == 1)
+	{
+		return 1;
+	}
+	else // check if two adjacent cells are obstacles
+	{
+		int count = 0;
+		for(int dx = -1; dx <= 1; ++dx)
+		{
+			for(int dy = -1; dy <= 1; ++dy)
+			{
+				if(is_obs(map,ix+dx, iy+dy))
+				{
+					++count;
+					if(count == 2)
+						return 1;
+				}
+			}
+		}
+	}
+	return 0;
+}
 bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 						nav_msgs::OccupancyGrid map, nav_msgs::Path& path)
 {
@@ -114,16 +141,15 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 
 	//get heading
 	float yaw_deg = get_yaw(pose)*180.0/3.14159;
-	int th_init = boost::math::iround(yaw_deg); //deg, just 45 deg res
 
 	float xg = goal.position.x;
 	float yg = goal.position.y;
-	float gaol_deg = get_yaw(goal)*180.0/3.14159;
-	int thg = boost::math::iround(yaw_deg);
+	float goal_deg = get_yaw(goal)*180.0/3.14159;
 	int rg; // = boost::math::iround(-yg);
 	int cg; // = boost::math::iround(xg);
 	get_map_indices(xg, yg, cg, rg);
-	int pg = (thg/45)%8;
+	int pg = boost::math::iround(goal_deg/45)%8;
+	int thg = pg*45;
 
 	float x1,y1,g1,f2,g2,h2,DIST,x2,y2,cost;
 	int th1,th2,p1,p2;
@@ -134,11 +160,11 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 	int done, no_sol, a;
 	x1 = x_init;
 	y1 = y_init;
-	th1 = th_init;
 	//r1 = boost::math::iround(-y_init);
 	//c1 = boost::math::iround(x_init);
 	get_map_indices(x_init, y_init, c1, r1);
-	p1 = (th1/45)%8;
+	p1 = boost::math::iround(yaw_deg/45)%8;
+	th1 = p1*45;
 
 	finished[r1][c1][p1] = 1;
 	g1 = 0;
@@ -153,8 +179,12 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 	dCount = 0;
 	while(!done && !no_sol)
 	{
+		// calculate angle to goal
+		float dx = xg-x1;
+		float dy = yg-y1;
+		int des_heading_deg = int(atan2(dy,dx)*180.0/3.1459+360)%360; //c % mod operator returns negative
 		//md(5);
-		for(m = 0; m<numMotions; m++)
+		for(m = 3; m<numMotions; m++)
 		{
 			cost = arc_move(next_pos,x1,y1,th1,motions[m],DIST);
 			if(next_pos[0] == 32767)
@@ -173,15 +203,18 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 			if(r2 >= 0 && r2 < NUM_ROWS && c2 >= 0 && c2 < NUM_COLS)
 			{
 				//if(map[r2][c2] == 0 && finished[r2][c2][p2] == 0)
-				if(is_obs(map,c2,r2) == 0 && finished[r2][c2][p2]==0)
+				if(is_obs2(map,c2,r2) == 0 && finished[r2][c2][p2]==0)
 				{
 					//cost now taken care of in arc_move()
 
 					//if(action[r1][c1][p1] * motions[m] < 0){cost = cost*10;} //Really slows it down, similar path in the end
-					g2 = g1 + cost*DIST;
+					g2 = g1 + cost;// *DIST; ALREADY MULTIPLIED BY DIST IN arc_move
 
-					h2 = sqrt((xg-x2)*(xg-x2) + (yg-y2)*(yg-y2));
-					f2 = g2+h2;
+					//h2 = sqrt((xg-x2)*(xg-x2) + (yg-y2)*(yg-y2));
+					h2 = (xg-x2)*(xg-x2) + (yg-y2)*(yg-y2);
+					//ADD penalty to h2 based on turning toward goal or not
+					h2 += fabs(float(th2-des_heading_deg)/100.0);
+					f2 = g2*g2+h2;
 					if(nOpen < MAX_OPEN)
 					{
 						nOpen += 1;
@@ -240,7 +273,7 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 			{
 				nOpen = 0;
 			}
-			if(r1 == rg && c1 == cg && p1 == pg)
+			if(r1 == rg && c1 == cg) // && p1 == pg)
 			{
 				done = 1;
 				printf("done\n");
@@ -336,17 +369,25 @@ float Astar::arc_move(float next_pos[], float x1, float y1, int th1, int motion,
 	if(th1 >= 360){th1 -= 360;}
 	p = (th1/45)%8; //current theta index (0 to 7)
 
-	next_pos[0] = x1 + delta_x[m_index][p]*d; //x2
-	next_pos[1] = y1 + delta_y[m_index][p]*d; //y2
+	float net_delta_x = float(delta_x[m_index][p])*d;
+	float net_delta_y = float(delta_y[m_index][p])*d;
+	next_pos[0] = x1 + net_delta_x; //x2
+	next_pos[1] = y1 + net_delta_y; //y2
 	th2 = th1 + delta_theta[m_index]; //th2
 	if(th2 < 0){th2 += 360;}
 	if(th2 >= 360){th2 -= 360;}
 	next_pos[2] = th2;
 
-	cost = abs(delta_x[m_index][p]) + abs(delta_y[m_index][p]);
-	if(motion < 0)
+	//cost = (abs(delta_x[m_index][p]) + abs(delta_y[m_index][p]));
+	cost = (abs(delta_x[m_index][p]) + abs(delta_y[m_index][p])) > 1 ? 1.42*d : d;
+	/*if(motion < 0)
 	{
-		cost = cost*2;
+		cost = cost*20;
 	}
+	*/
+	/*if(abs(motion) > 1)
+	{
+		cost = cost*1.4;
+	}*/
 	return cost;
 }
