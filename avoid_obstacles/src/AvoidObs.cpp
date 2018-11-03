@@ -27,6 +27,7 @@ AvoidObs::AvoidObs()
     nh_p.param("map_size", n_width_, 200);
     nh_p.param("map_size", n_height_, 200);
     nh_p.param("max_range", max_range_, 40.0);
+    nh_p.param("plan_range_m",plan_range_, 40.0);
     ROS_INFO("map_size (n cells): %d", n_width_);
     
     //listener.setExtrapolationLimit(ros::Duration(0.1));
@@ -100,9 +101,21 @@ bool AvoidObs::update_plan()
 	start.position.x = 0;
 	start.position.y = 0;
 	start.orientation.w = 1.0;
-	goal.position.x = 20;
-	goal.position.y = -38;
-	goal.orientation.w = 1.0;
+
+	goal.position.x = -40;
+	goal.position.y = 40;
+	goal.orientation = bot_pose.orientation; //we currently ignore goal orientation
+
+	float dx = goal.position.x - bot_pose.position.x;
+	float dy = goal.position.y - bot_pose.position.y;
+	float goal_dist_sqd = dx*dx + dy*dy;
+	if(goal_dist_sqd > plan_range_*plan_range_)
+	{
+		float dir_rad = atan2(dy,dx);
+		goal.position.x = bot_pose.position.x+plan_range_*cos(dir_rad);
+		goal.position.y = bot_pose.position.y+plan_range_*sin(dir_rad);
+	}
+
 	astar.get_path(bot_pose, goal, costmap, path);
 	path.header.stamp = ros::Time::now();
 	path_pub_.publish(path);

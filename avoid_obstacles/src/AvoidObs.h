@@ -54,6 +54,7 @@ class AvoidObs
         double map_res_; //Default 0.5 meters
         int n_width_, n_height_;
         double max_range_;
+        double plan_range_;
 };
 
 #endif

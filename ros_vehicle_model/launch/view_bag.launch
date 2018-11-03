@@ -38,6 +38,7 @@
     <param name="map_res_m" value="1.0" />
     <param name="map_size" value="150" />
     <param name="max_range" value="40.0" />
+    <param name="plan_range" value="35.0" />
   </node>
 
 </launch>

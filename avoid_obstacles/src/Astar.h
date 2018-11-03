@@ -25,14 +25,14 @@ public:
 		int theta; //orientation in deg (45 deg res)
 	}Cell;
 
+	float get_yaw(geometry_msgs::Pose pose);
+
 private:
 	float arc_move(float next_pos[], float x1, float y1, int th1, int motion, float d);
 
 	//bool compareCells(const Cell& a, const Cell& b);
 
 	Cell new_cell(float f, float g, float x, float y, int theta);
-
-	float get_yaw(geometry_msgs::Pose pose);
 
 	bool get_map_indices(float x, float y, int& ix, int& iy);
 
