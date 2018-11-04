@@ -21,6 +21,7 @@ AvoidObs::AvoidObs()
     // leddarCallback will run every time ros sees the topic /received_messages
     scan_sub_ = nh_.subscribe("scan", 50, &AvoidObs::scanCallback, this); //receive laser scan
     odom_sub_ = nh_.subscribe("odom", 10, &AvoidObs::odomCallback, this);
+    goal_sub_ = nh_.subscribe("/move_base_simple/goal", 1, &AvoidObs::goalCallback, this);
     nh_p  = ros::NodeHandle("~");
     nh_p.param("plan_rate_hz", plan_rate_, 1); //set in avoid_obs.launch
     nh_p.param("map_res_m", map_res_, 0.5);
@@ -53,15 +54,17 @@ AvoidObs::AvoidObs()
     path.header.frame_id = "odom";
     //path.poses.push_back(geometry_msgs::PoseStamped)
 
+    goal_pose.orientation.w = 1.0;
+
     //test Astar setup
-    geometry_msgs::Pose start, goal;
+    /*geometry_msgs::Pose start, goal;
     start.position.x = 0;
     start.position.y = 0;
     start.orientation.w = 1.0;
     goal.position.x = 20;
     goal.position.y = -38;
     goal.orientation.w = 1.0;
-    astar.get_path(start, goal, costmap, path);
+    astar.get_path(start, goal, costmap, path);*/
 
 }
 
@@ -80,11 +83,18 @@ void AvoidObs::update_cell(float x, float y, int val)
 	int iy = (y-y0)/map_res_;
 	if(0 <= ix && ix < n_width_ && 0 <= iy && iy < n_height_)
 	{
-		costmap.data[iy*n_width_ + ix] += val;
-		if(costmap.data[iy*n_width_ + ix] > 100)
-			costmap.data[iy*n_width_ + ix] = 100;
-		else if(costmap.data[iy*n_width_ + ix] < 0)
-			costmap.data[iy*n_width_ + ix] = 0;
+		if(val > 0 && costmap.data[iy*n_width_ + ix] == 0) //ignore first hits
+		{
+			costmap.data[iy*n_width_ + ix] = 1;
+		}
+		else
+		{
+			costmap.data[iy*n_width_ + ix] += val;
+			if(costmap.data[iy*n_width_ + ix] > 100)
+				costmap.data[iy*n_width_ + ix] = 100;
+			else if(costmap.data[iy*n_width_ + ix] < 0)
+				costmap.data[iy*n_width_ + ix] = 0;
+		}
 	}
 }
 
@@ -97,26 +107,23 @@ bool AvoidObs::update_plan()
 	path.poses.push_back(wp);
 	*/
 
-	geometry_msgs::Pose start, goal;
-	start.position.x = 0;
-	start.position.y = 0;
-	start.orientation.w = 1.0;
+	geometry_msgs::Pose start, temp_goal = goal_pose;
 
-	goal.position.x = -40;
-	goal.position.y = 40;
-	goal.orientation = bot_pose.orientation; //we currently ignore goal orientation
-
-	float dx = goal.position.x - bot_pose.position.x;
-	float dy = goal.position.y - bot_pose.position.y;
+	float dx = goal_pose.position.x - bot_pose.position.x;
+	float dy = goal_pose.position.y - bot_pose.position.y;
 	float goal_dist_sqd = dx*dx + dy*dy;
 	if(goal_dist_sqd > plan_range_*plan_range_)
 	{
-		float dir_rad = atan2(dy,dx);
-		goal.position.x = bot_pose.position.x+plan_range_*cos(dir_rad);
-		goal.position.y = bot_pose.position.y+plan_range_*sin(dir_rad);
+		float dir_rad;
+		if(dx == 0 && dy == 0)
+			dir_rad = 0.0;
+		else
+			dir_rad = atan2(dy,dx);
+		temp_goal.position.x = bot_pose.position.x+plan_range_*cos(dir_rad);
+		temp_goal.position.y = bot_pose.position.y+plan_range_*sin(dir_rad);
 	}
 
-	astar.get_path(bot_pose, goal, costmap, path);
+	astar.get_path(bot_pose, temp_goal, costmap, path);
 	path.header.stamp = ros::Time::now();
 	path_pub_.publish(path);
 }
@@ -125,6 +132,11 @@ void AvoidObs::odomCallback(const nav_msgs::Odometry& odom)
 {
 	bot_pose.position = odom.pose.pose.position;
 	bot_pose.orientation = odom.pose.pose.orientation;
+}
+
+void AvoidObs::goalCallback(const geometry_msgs::PoseStamped& data)
+{
+	goal_pose = data.pose;
 }
 
 void AvoidObs::scanCallback(const sensor_msgs::LaserScan& scan) //use a point cloud instead, use laser2pc.launch
@@ -145,13 +157,14 @@ void AvoidObs::scanCallback(const sensor_msgs::LaserScan& scan) //use a point cl
 	    for(double r = 0.5; r < (range - map_res_/2); r += map_res_)
 	    {
 	    	double angle_step = r*scan.angle_increment/map_res_;
-	    	for(double a=(angle-scan.angle_increment/2); a < (angle+scan.angle_increment/2); a += angle_step)
+	    	//clearing as we pass obstacles, try angle_increment/3 vs /2 (reduce clearing fov per laser)
+	    	for(double a=(angle-scan.angle_increment/3); a < (angle+scan.angle_increment/3); a += angle_step)
 	    	{
 	    		laser_point.point.x = r*cos(a);
 	    		laser_point.point.y = r*sin(a);
 	    		try{
 					listener.transformPoint("odom", laser_point, odom_point);
-					update_cell(odom_point.point.x, odom_point.point.y, -5);
+					update_cell(odom_point.point.x, odom_point.point.y, -10);
 				}
 				catch(tf::TransformException& ex){
 					int xa;
@@ -169,7 +182,7 @@ void AvoidObs::scanCallback(const sensor_msgs::LaserScan& scan) //use a point cl
 
 			try{
 				listener.transformPoint("odom", laser_point, odom_point);
-				update_cell(odom_point.point.x, odom_point.point.y, 5);
+				update_cell(odom_point.point.x, odom_point.point.y, 20);
 			}
 			catch(tf::TransformException& ex){
 				int xa;

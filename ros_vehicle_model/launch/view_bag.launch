@@ -16,7 +16,7 @@
   <!-- Nov run3.bag, x:6.9 y:0.3 yaw:0.01 -->
 
   <!-- RViz -->
-  <node name="visualisation" pkg="rviz" type="rviz" args="-d $(find nav_sim)/config/view_costmap.rviz" />
+  <node name="visualisation" pkg="rviz" type="rviz" args="-d $(find avoid_obstacles)/config/view_costmap.rviz" />
 
   <!-- Play the bagfile, loop is an option -->
   <node pkg="rosbag" type="play" name="rosbag" args="--clock $(arg bagfile)"/>
@@ -34,7 +34,7 @@
   -->
 
   <node pkg="avoid_obstacles" type="avoid_obs" name="avoid_obs" output="screen">
-    <param name="plan_rate_hz" value="1.0" />
+    <param name="plan_rate_hz" value="4.0" />
     <param name="map_res_m" value="1.0" />
     <param name="map_size" value="150" />
     <param name="max_range" value="40.0" />

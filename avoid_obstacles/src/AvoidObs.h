@@ -29,6 +29,7 @@ class AvoidObs
     private:
         void scanCallback(const sensor_msgs::LaserScan& scan);
         void odomCallback(const nav_msgs::Odometry& odom);
+        void goalCallback(const geometry_msgs::PoseStamped& data);
         
         void update_cell(float x, float y, int val);
         
@@ -36,7 +37,7 @@ class AvoidObs
         ros::NodeHandle nh_p;
         ros::Publisher costmap_pub_;
         ros::Publisher path_pub_;
-        ros::Subscriber scan_sub_, odom_sub_;
+        ros::Subscriber scan_sub_, odom_sub_, goal_sub_;
         
         Astar astar;
 
@@ -45,7 +46,7 @@ class AvoidObs
         geometry_msgs::Pose map_pose;
         nav_msgs::OccupancyGrid costmap;
         nav_msgs::Path path;
-        geometry_msgs::Pose bot_pose;
+        geometry_msgs::Pose bot_pose, goal_pose;
         
         tf::TransformListener listener;
 

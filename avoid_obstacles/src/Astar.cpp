@@ -380,11 +380,11 @@ float Astar::arc_move(float next_pos[], float x1, float y1, int th1, int motion,
 
 	//cost = (abs(delta_x[m_index][p]) + abs(delta_y[m_index][p]));
 	cost = (abs(delta_x[m_index][p]) + abs(delta_y[m_index][p])) > 1 ? 1.42*d : d;
-	/*if(motion < 0)
+	if(motion < 0)
 	{
-		cost = cost*20;
+		cost = cost*2;
 	}
-	*/
+
 	/*if(abs(motion) > 1)
 	{
 		cost = cost*1.4;
