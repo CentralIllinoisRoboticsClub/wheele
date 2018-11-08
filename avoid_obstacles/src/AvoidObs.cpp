@@ -16,6 +16,7 @@ AvoidObs::AvoidObs()
     //Topics you want to publish
     costmap_pub_ = nh_.advertise<nav_msgs::OccupancyGrid>("costmap", 1);
     path_pub_ = nh_.advertise<nav_msgs::Path>("path", 1);
+    cmd_pub_ = nh_.advertise<geometry_msgs::Twist>("cmd_vel",10);
 
     //Topic you want to subscribe
     // leddarCallback will run every time ros sees the topic /received_messages
@@ -55,6 +56,8 @@ AvoidObs::AvoidObs()
     //path.poses.push_back(geometry_msgs::PoseStamped)
 
     goal_pose.orientation.w = 1.0;
+    bot_pose.orientation.w = 1.0;
+    bot_yaw = 0.0;
 
     //test Astar setup
     /*geometry_msgs::Pose start, goal;
@@ -123,20 +126,66 @@ bool AvoidObs::update_plan()
 		temp_goal.position.y = bot_pose.position.y+plan_range_*sin(dir_rad);
 	}
 
-	astar.get_path(bot_pose, temp_goal, costmap, path);
-	path.header.stamp = ros::Time::now();
-	path_pub_.publish(path);
+	//astar.get_path(bot_pose, temp_goal, costmap, path);
+	//path.header.stamp = ros::Time::now();
+	//path_pub_.publish(path);
+
+	//Potential Fields Test
+	pf.obs_list.clear();
+	int bot_ix, bot_iy;
+	get_map_indices(pf.bot.x, pf.bot.y, bot_ix, bot_iy);
+
+	for(int ix = bot_ix - 5; ix < bot_ix+5; ++ix)
+	{
+		for(int iy = bot_iy - 5; iy < bot_iy+5; ++iy)
+		{
+			if(is_obs(ix,iy))
+			{
+				PotentialFields::Obstacle obs;
+				obs.x = map_pose.position.x + ix*map_res_;
+				obs.y = map_pose.position.y + iy*map_res_;
+				pf.obs_list.push_back(obs);
+			}
+		}
+	}
+	bot_yaw = astar.get_yaw(bot_pose);
+	ROS_INFO("bot_yaw: %0.2f", bot_yaw);
+	geometry_msgs::Twist cmd = pf.update_cmd(bot_yaw);
+	ROS_INFO("bot_yaw: %0.2f", bot_yaw);
+	cmd_pub_.publish(cmd);
+}
+
+bool AvoidObs::get_map_indices(float x, float y, int& ix, int& iy)
+{
+	ix = (x-map_pose.position.x)/map_res_;
+	iy = (y-map_pose.position.y)/map_res_;
+	return true;
+}
+
+int AvoidObs::is_obs(int ix, int iy)
+{
+	int ind = iy*n_width_ + ix;
+	if(0 > ix || ix >= n_width_ || 0 > iy || iy >= n_height_)
+		return 1;
+	if(costmap.data[iy*n_width_ + ix] > 0.3)
+		return 1;
+	return 0;
 }
 
 void AvoidObs::odomCallback(const nav_msgs::Odometry& odom)
 {
 	bot_pose.position = odom.pose.pose.position;
 	bot_pose.orientation = odom.pose.pose.orientation;
+
+	pf.bot.x = bot_pose.position.x;
+	pf.bot.y = bot_pose.position.y;
 }
 
 void AvoidObs::goalCallback(const geometry_msgs::PoseStamped& data)
 {
 	goal_pose = data.pose;
+	pf.goal.x = goal_pose.position.x;
+	pf.goal.y = goal_pose.position.y;
 }
 
 void AvoidObs::scanCallback(const sensor_msgs::LaserScan& scan) //use a point cloud instead, use laser2pc.launch
