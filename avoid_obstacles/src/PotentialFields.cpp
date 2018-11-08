@@ -4,9 +4,9 @@
 PotentialFields::PotentialFields() :
 	c_attr(2.0),
 	max_Fattr(10.0),
-	c_repel(200.0),
-	obs_d0(4.0),
-	alpha(0.5)
+	c_repel(90.0),
+	obs_d0(3.0),
+	alpha(0.1)
 {
 	obs_list.clear();
 	bot.x = 0;
@@ -27,6 +27,7 @@ geometry_msgs::Twist PotentialFields::update_cmd(float bot_yaw)
 	{
 		cmd.linear.x = 0;
 		cmd.angular.z = 0;
+		return cmd;
 	}
 	else
 	{
@@ -40,7 +41,8 @@ geometry_msgs::Twist PotentialFields::update_cmd(float bot_yaw)
 
 
 	cmd.linear.x = 1;
-	cmd.angular.z = yaw_error;
+	float kp = 0.5;
+	cmd.angular.z = kp*yaw_error;
 
 	return cmd;
 }
@@ -57,7 +59,7 @@ geometry_msgs::Vector3 PotentialFields::get_vxvy()
 	Fattr = get_Fattr();
 	if(Fattr.x == 0 && Fattr.y == 0)
 		return vel;
-	Frepel = get_Frepel();
+	Frepel = get_Frepel(Fattr);
 
 	Frepel_filt.x = alpha*Frepel_filt.x + (1-alpha)*Frepel.x;
 	Frepel_filt.y = alpha*Frepel_filt.y + (1-alpha)*Frepel.y;
@@ -111,13 +113,13 @@ geometry_msgs::Vector3 PotentialFields::get_Fattr()
 
 	return Fattr;
 }
-geometry_msgs::Vector3 PotentialFields::get_Frepel()
+geometry_msgs::Vector3 PotentialFields::get_Frepel(geometry_msgs::Vector3 Fattr)
 {
 	geometry_msgs::Vector3 Frepel;
 	Frepel.x = 0;
 	Frepel.y = 0;
 
-	float dx, dy, dmag_sqd, w, Fx, Fy, Fxtan, Fytan;
+	float dx, dy, dmag_sqd, d, w, Fx, Fy, Fxtan, Fytan;
 
 	for(unsigned k = 0; k<obs_list.size(); ++k)
 	{
@@ -128,7 +130,8 @@ geometry_msgs::Vector3 PotentialFields::get_Frepel()
 		dmag_sqd = dx*dx + dy*dy;
 		if(dmag_sqd < obs_d0)
 		{
-			w = c_repel*(1/dmag_sqd - 1/(obs_d0*obs_d0)) / (dmag_sqd*dmag_sqd);
+			d = sqrt(dmag_sqd);
+			w = c_repel*(1/d - 1/(obs_d0)) / (d*d*d);
 			Fx = w*dx;
 			Fy = w*dy;
 		}
@@ -137,14 +140,40 @@ geometry_msgs::Vector3 PotentialFields::get_Frepel()
 			Fx = 0;
 			Fy = 0;
 		}
-		// TODO: choose mu based on a-star path
-		float mu = 1.0;
-		Fxtan = -mu*Fy;
-		Fytan = mu*Fx;
 
-		Frepel.x += Fxtan;
-		Frepel.y += Fytan;
+		if(get_cos_2d(dx, dy, Fattr.x, Fattr.y) > 0.9) //we've past this obstacle
+		{
+			// Use radial force
+			Frepel.x += Fx;
+			Frepel.y += Fy;
+		}
+		else
+		{
+			// Use tangengtial force
+			// TODO: choose mu based on a-star path
+			float mu = 1.0;
+			Fxtan = -mu*Fy;
+			Fytan = mu*Fx;
+			if(get_cos_2d(Fxtan, Fytan, Fattr.x, Fattr.y) < -0.9)
+			{
+				Fxtan = -Fxtan;
+				Fytan = -Fytan;
+			}
+			Frepel.x += Fxtan;
+			Frepel.y += Fytan;
+		}
 	}
 
 	return Frepel;
+}
+
+float PotentialFields::get_cos_2d(float ax, float ay, float bx, float by)
+{
+	float cos_val;
+	float magA, magB;
+	magA = sqrt(ax*ax+ ay*ay);
+	magB = sqrt(bx*bx + by*by);
+	if(magA == 0 || magB == 0)
+		return 0;
+	return (ax*bx + ay*by)/magA/magB;
 }
