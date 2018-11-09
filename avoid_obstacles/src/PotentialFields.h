@@ -36,7 +36,7 @@ public:
 
 private:
 	float c_attr, max_Fattr;
-	float c_repel, obs_d0;
+	float c_repel, obs_d0, obs_d_retreat;
 	float alpha;
 	geometry_msgs::Vector3 get_Fattr();
 	geometry_msgs::Vector3 get_Frepel(geometry_msgs::Vector3 Fattr);

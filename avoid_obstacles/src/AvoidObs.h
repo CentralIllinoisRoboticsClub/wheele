@@ -35,11 +35,11 @@ class AvoidObs
         void update_cell(float x, float y, int val);
         
         bool get_map_indices(float x, float y, int& ix, int& iy);
-        int is_obs(int ix, int iy);
+        int get_cost(int ix, int iy);
 
         ros::NodeHandle nh_;
         ros::NodeHandle nh_p;
-        ros::Publisher costmap_pub_;
+        ros::Publisher costmap_pub_, pf_obs_pub_;
         ros::Publisher path_pub_, cmd_pub_;
         ros::Subscriber scan_sub_, odom_sub_, goal_sub_;
         
@@ -48,8 +48,8 @@ class AvoidObs
 
         unsigned num_obs_cells; //number of detections given in 0x751
         
-        geometry_msgs::Pose map_pose;
-        nav_msgs::OccupancyGrid costmap;
+        geometry_msgs::Pose map_pose, pfObs_pose;
+        nav_msgs::OccupancyGrid costmap, pfObs;
         nav_msgs::Path path;
         geometry_msgs::Pose bot_pose, goal_pose;
         float bot_yaw;

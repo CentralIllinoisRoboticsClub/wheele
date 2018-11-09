@@ -62,8 +62,8 @@ Astar::~Astar(){}
 
 bool Astar::get_map_indices(float x, float y, int& ix, int& iy)
 {
-	ix = (x-map_x0)/map_res;
-	iy = (y-map_y0)/map_res;
+	ix = boost::math::iround((x-map_x0)/map_res);
+	iy = boost::math::iround((y-map_y0)/map_res);
 	return true;
 }
 

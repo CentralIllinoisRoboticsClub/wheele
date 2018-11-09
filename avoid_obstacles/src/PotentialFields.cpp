@@ -3,9 +3,10 @@
 
 PotentialFields::PotentialFields() :
 	c_attr(2.0),
-	max_Fattr(10.0),
-	c_repel(90.0),
-	obs_d0(3.0),
+	max_Fattr(2.0),
+	c_repel(1000.0),
+	obs_d0(5.0),
+	obs_d_retreat(1.0),
 	alpha(0.1)
 {
 	obs_list.clear();
@@ -40,7 +41,11 @@ geometry_msgs::Twist PotentialFields::update_cmd(float bot_yaw)
 		yaw_error += 3.14159*2;
 
 
-	cmd.linear.x = 1;
+	if(fabs(yaw_error) > 3.14159*0.7)
+		cmd.linear.x = -1;
+	else
+		cmd.linear.x = 1;
+
 	float kp = 0.5;
 	cmd.angular.z = kp*yaw_error;
 
@@ -128,7 +133,7 @@ geometry_msgs::Vector3 PotentialFields::get_Frepel(geometry_msgs::Vector3 Fattr)
 		dy = bot.y - obs.y;
 		//forget obstacle radius for now
 		dmag_sqd = dx*dx + dy*dy;
-		if(dmag_sqd < obs_d0)
+		if(dmag_sqd < obs_d0*obs_d0)
 		{
 			d = sqrt(dmag_sqd);
 			w = c_repel*(1/d - 1/(obs_d0)) / (d*d*d);
@@ -141,7 +146,7 @@ geometry_msgs::Vector3 PotentialFields::get_Frepel(geometry_msgs::Vector3 Fattr)
 			Fy = 0;
 		}
 
-		if(get_cos_2d(dx, dy, Fattr.x, Fattr.y) > 0.9) //we've past this obstacle
+		if(d < obs_d_retreat || get_cos_2d(dx, dy, Fattr.x, Fattr.y) > 0.9) //we've past this obstacle
 		{
 			// Use radial force
 			Frepel.x += Fx;
@@ -169,9 +174,8 @@ geometry_msgs::Vector3 PotentialFields::get_Frepel(geometry_msgs::Vector3 Fattr)
 
 float PotentialFields::get_cos_2d(float ax, float ay, float bx, float by)
 {
-	float cos_val;
 	float magA, magB;
-	magA = sqrt(ax*ax+ ay*ay);
+	magA = sqrt(ax*ax + ay*ay);
 	magB = sqrt(bx*bx + by*by);
 	if(magA == 0 || magB == 0)
 		return 0;

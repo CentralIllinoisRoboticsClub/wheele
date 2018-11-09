@@ -1,6 +1,7 @@
 #include "AvoidObs.h"
 #include <geometry_msgs/PointStamped.h>
 #include <math.h>
+#include <boost/math/special_functions/round.hpp>
 
 /**********************************************************************
 * Obstacle Avoidance using a nav_msgs/OccupacyGrid and A* path planning
@@ -17,6 +18,8 @@ AvoidObs::AvoidObs()
     costmap_pub_ = nh_.advertise<nav_msgs::OccupancyGrid>("costmap", 1);
     path_pub_ = nh_.advertise<nav_msgs::Path>("path", 1);
     cmd_pub_ = nh_.advertise<geometry_msgs::Twist>("cmd_vel",10);
+
+    pf_obs_pub_ = nh_.advertise<nav_msgs::OccupancyGrid>("pfObs", 1);
 
     //Topic you want to subscribe
     // leddarCallback will run every time ros sees the topic /received_messages
@@ -37,8 +40,8 @@ AvoidObs::AvoidObs()
 
     num_obs_cells = 0; //number of obstacle cells
     
-    map_pose.position.x = -n_width_*map_res_/2; // I believe this is zero by default, check by echoing costmap
-    map_pose.position.y = -n_height_*map_res_/2; // will need to update x and y as we move
+    map_pose.position.x = -(n_width_+1)*map_res_/2; // I believe this is zero by default, check by echoing costmap
+    map_pose.position.y = -(n_height_+1)*map_res_/2; // will need to update x and y as we move
     map_pose.orientation.w = 1.0;
     
     costmap.header.stamp = ros::Time::now();
@@ -58,6 +61,9 @@ AvoidObs::AvoidObs()
     goal_pose.orientation.w = 1.0;
     bot_pose.orientation.w = 1.0;
     bot_yaw = 0.0;
+
+    //Potential Fields Obstacle Map for debugging
+    pfObs = costmap;
 
     //test Astar setup
     /*geometry_msgs::Pose start, goal;
@@ -80,10 +86,8 @@ int AvoidObs::get_plan_rate()
 
 void AvoidObs::update_cell(float x, float y, int val)
 {
-	float x0 = map_pose.position.x;
-	float y0 = map_pose.position.y;
-	int ix = (x-x0)/map_res_;
-	int iy = (y-y0)/map_res_;
+	int ix, iy;
+	get_map_indices(x,y,ix,iy);
 	if(0 <= ix && ix < n_width_ && 0 <= iy && iy < n_height_)
 	{
 		if(val > 0 && costmap.data[iy*n_width_ + ix] == 0) //ignore first hits
@@ -131,6 +135,11 @@ bool AvoidObs::update_plan()
 	//path_pub_.publish(path);
 
 	//Potential Fields Test
+	// pfObs is an odom grid map, same info as costmap
+	pfObs.header.stamp = ros::Time::now();
+	pfObs.data.clear();
+	pfObs.data.resize(n_width_*n_height_);
+
 	pf.obs_list.clear();
 	int bot_ix, bot_iy;
 	get_map_indices(pf.bot.x, pf.bot.y, bot_ix, bot_iy);
@@ -139,37 +148,56 @@ bool AvoidObs::update_plan()
 	{
 		for(int iy = bot_iy - 5; iy < bot_iy+5; ++iy)
 		{
-			if(is_obs(ix,iy))
+			if(get_cost(ix,iy) > 30)
 			{
+				pfObs.data[iy*n_width_ + ix] = 95;
 				PotentialFields::Obstacle obs;
 				obs.x = map_pose.position.x + ix*map_res_;
 				obs.y = map_pose.position.y + iy*map_res_;
+				ROS_INFO("Added pfObs x,y: %0.0f, %0.0f",obs.x, obs.y);
 				pf.obs_list.push_back(obs);
 			}
 		}
 	}
+
+	//testing hard coded obstacle
+	// revealed need to use round for x,y to ix,iy and also offset map by res/2
+	//pf.obs_list.clear();
+	PotentialFields::Obstacle obs;
+	float x = 7, y=0;
+	int ix, iy;
+	for(int k=-1; k<=1; ++k)
+	{
+		get_map_indices(x, y+k, ix, iy);
+		pfObs.data[iy*n_width_ + ix] = 50;
+		obs.x = x;
+		obs.y = y+k;
+		pf.obs_list.push_back(obs);
+	}
+	obs.x = 14; obs.y = 4;
+	get_map_indices(obs.x, obs.y, ix, iy);
+	pfObs.data[iy*n_width_ + ix] = 50;
+	pf.obs_list.push_back(obs);
+	// end testing hard coded obstacle list
 	bot_yaw = astar.get_yaw(bot_pose);
-	ROS_INFO("bot_yaw: %0.2f", bot_yaw);
 	geometry_msgs::Twist cmd = pf.update_cmd(bot_yaw);
-	ROS_INFO("bot_yaw: %0.2f", bot_yaw);
+	//ROS_INFO("bot_yaw: %0.2f", bot_yaw);
 	cmd_pub_.publish(cmd);
+	pf_obs_pub_.publish(pfObs);
 }
 
 bool AvoidObs::get_map_indices(float x, float y, int& ix, int& iy)
 {
-	ix = (x-map_pose.position.x)/map_res_;
-	iy = (y-map_pose.position.y)/map_res_;
+	ix = boost::math::iround((x-map_pose.position.x)/map_res_);
+	iy = boost::math::iround((y-map_pose.position.y)/map_res_);
 	return true;
 }
 
-int AvoidObs::is_obs(int ix, int iy)
+int AvoidObs::get_cost(int ix, int iy)
 {
-	int ind = iy*n_width_ + ix;
 	if(0 > ix || ix >= n_width_ || 0 > iy || iy >= n_height_)
-		return 1;
-	if(costmap.data[iy*n_width_ + ix] > 0.3)
-		return 1;
-	return 0;
+		return 100;
+	return costmap.data[iy*n_width_ + ix];
 }
 
 void AvoidObs::odomCallback(const nav_msgs::Odometry& odom)
@@ -213,7 +241,7 @@ void AvoidObs::scanCallback(const sensor_msgs::LaserScan& scan) //use a point cl
 	    		laser_point.point.y = r*sin(a);
 	    		try{
 					listener.transformPoint("odom", laser_point, odom_point);
-					update_cell(odom_point.point.x, odom_point.point.y, -10);
+					update_cell(odom_point.point.x, odom_point.point.y, 0); //CLEAR_VAL_DECREASE
 				}
 				catch(tf::TransformException& ex){
 					int xa;
@@ -243,6 +271,8 @@ void AvoidObs::scanCallback(const sensor_msgs::LaserScan& scan) //use a point cl
 	//odom_point.point.x = 10.0;
 	//odom_point.point.y = -5.0;
 	//update_cell(odom_point.point.x, odom_point.point.y, 100.0);
+
+	costmap.header.stamp = scan.header.stamp;;
 	costmap_pub_.publish(costmap);
 }
 
