@@ -33,6 +33,8 @@ AvoidObs::AvoidObs()
     nh_p.param("map_size", n_height_, 200);
     nh_p.param("max_range", max_range_, 40.0);
     nh_p.param("plan_range_m",plan_range_, 40.0);
+    nh_p.param("clear_decrement",clear_decrement_,-5);
+    nh_p.param("fill_increment",fill_increment_,10);
     ROS_INFO("map_size (n cells): %d", n_width_);
     
     //listener.setExtrapolationLimit(ros::Duration(0.1));
@@ -154,7 +156,7 @@ bool AvoidObs::update_plan()
 				PotentialFields::Obstacle obs;
 				obs.x = map_pose.position.x + ix*map_res_;
 				obs.y = map_pose.position.y + iy*map_res_;
-				ROS_INFO("Added pfObs x,y: %0.0f, %0.0f",obs.x, obs.y);
+				//ROS_INFO("Added pfObs x,y: %0.0f, %0.0f",obs.x, obs.y);
 				pf.obs_list.push_back(obs);
 			}
 		}
@@ -241,7 +243,7 @@ void AvoidObs::scanCallback(const sensor_msgs::LaserScan& scan) //use a point cl
 	    		laser_point.point.y = r*sin(a);
 	    		try{
 					listener.transformPoint("odom", laser_point, odom_point);
-					update_cell(odom_point.point.x, odom_point.point.y, 0); //CLEAR_VAL_DECREASE
+					update_cell(odom_point.point.x, odom_point.point.y, clear_decrement_); //CLEAR_VAL_DECREASE
 				}
 				catch(tf::TransformException& ex){
 					int xa;
@@ -259,7 +261,7 @@ void AvoidObs::scanCallback(const sensor_msgs::LaserScan& scan) //use a point cl
 
 			try{
 				listener.transformPoint("odom", laser_point, odom_point);
-				update_cell(odom_point.point.x, odom_point.point.y, 20);
+				update_cell(odom_point.point.x, odom_point.point.y, fill_increment_);
 			}
 			catch(tf::TransformException& ex){
 				int xa;

@@ -62,6 +62,7 @@ class AvoidObs
         int n_width_, n_height_;
         double max_range_;
         double plan_range_;
+        int clear_decrement_, fill_increment_;
 };
 
 #endif
