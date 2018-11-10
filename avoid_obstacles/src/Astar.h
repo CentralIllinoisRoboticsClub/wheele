@@ -29,6 +29,7 @@ public:
 
 private:
 	float arc_move(float next_pos[], float x1, float y1, int th1, int motion, float d);
+	float simp_move(float next_pos[], float x1, float y1, int th1, int motion, float d);
 
 	//bool compareCells(const Cell& a, const Cell& b);
 

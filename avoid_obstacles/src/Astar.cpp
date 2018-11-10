@@ -155,15 +155,17 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 	int th1,th2,p1,p2;
 	float next_pos[3] = {0,0,0};
 	int r1,c1, nOpen, dCount, m, r2,c2, r_init, c_init, count;
-	int numMotions = 6, rev_motion;
-	int motions[6] = {-3,-2,-1, 1, 2, 3};
+	int numMotions = 8, rev_motion;
+	//int motions[6] = {-3,-2,-1, 1, 2, 3}; //arc_move
+	int motions[8] = {1,-1,2,-2,3,-3,4,-4}; //simp_move
 	int done, no_sol, a;
 	x1 = x_init;
 	y1 = y_init;
 	//r1 = boost::math::iround(-y_init);
 	//c1 = boost::math::iround(x_init);
 	get_map_indices(x_init, y_init, c1, r1);
-	p1 = boost::math::iround(yaw_deg/45)%8;
+	//p1 = boost::math::iround(yaw_deg/45)%8; //arc_move
+	p1 = 0;
 	th1 = p1*45;
 
 	finished[r1][c1][p1] = 1;
@@ -175,7 +177,7 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 	no_sol = 0;
 	DIST = map_res;
 
-	printf("Begin while\n");
+	//printf("Begin while\n");
 	dCount = 0;
 	while(!done && !no_sol)
 	{
@@ -184,12 +186,12 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 		float dy = yg-y1;
 		int des_heading_deg = int(atan2(dy,dx)*180.0/3.1459+360)%360; //c % mod operator returns negative
 		//md(5);
-		for(m = 3; m<numMotions; m++)
+		for(m = 0; m<numMotions; m++)
 		{
-			cost = arc_move(next_pos,x1,y1,th1,motions[m],DIST);
+			cost = simp_move(next_pos,x1,y1,th1,motions[m],DIST);
 			if(next_pos[0] == 32767)
 			{
-				printf("Invalid motion in move\n");
+				printf("Invalid motion in search move\n");
 				return 1;
 			}
 			x2 = next_pos[0];
@@ -276,7 +278,7 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 			if(r1 == rg && c1 == cg) // && p1 == pg)
 			{
 				done = 1;
-				printf("done\n");
+				//printf("done\n");
 			}
 		}
 	}
@@ -302,7 +304,7 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 		{
 			//printf("action: %d\n",action[r1][c1][p1]);
 			rev_motion = -action[r1][c1][p1];
-			cost = arc_move(next_pos,x1,y1,th1,rev_motion,DIST);
+			cost = simp_move(next_pos,x1,y1,th1,rev_motion,DIST);
 			if(next_pos[0] == 32767)
 			{
 				printf("Invalid motion in move\n");
@@ -389,5 +391,70 @@ float Astar::arc_move(float next_pos[], float x1, float y1, int th1, int motion,
 	{
 		cost = cost*1.4;
 	}*/
+	return cost;
+}
+
+float Astar::simp_move(float next_pos[], float x1, float y1, int th1, int motion, float d)
+{
+	float cost;
+	#define up 1
+	#define down -1
+	#define left 2
+	#define right -2
+	#define upLeft 3
+	#define downRight -3
+	#define upRight 4
+	#define downLeft -4
+
+	if(motion < 4)
+		cost = d;
+	else
+		cost = 1.4*d;
+
+	float x2,y2;
+
+	switch (motion)
+	{
+		case up:
+			x2 = x1;
+			y2 = y1 + d;
+			break;
+		case down:
+			x2 = x1;
+			y2 = y1 - d;
+			break;
+		case left:
+			x2 = x1-d;
+			y2 = y1;
+			break;
+		case right:
+			x2 = x1+d;
+			y2 = y1;
+			break;
+		case upLeft:
+			x2 = x1 - d;
+			y2 = y1 + d;
+			break;
+		case downRight:
+			x2 = x1 + d;
+			y2 = y1 - d;
+			break;
+		case upRight:
+			x2 = x1+d;
+			y2 = y1+d;
+			break;
+		case downLeft:
+			x2 = x1-d;
+			y2 = y1-d;
+			break;
+		default:
+			//printf("invalid motion value\n");
+			x2 = 32767;
+			y2 = 32767;
+	}
+	next_pos[0] = x2;
+	next_pos[1] = y2;
+	next_pos[2] = 0;
+
 	return cost;
 }
