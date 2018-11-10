@@ -24,7 +24,7 @@ class AvoidObs
         
         //returns parameter rate_ in hz
         // used to define ros::Rate
-        int get_plan_rate();
+        double get_plan_rate();
         bool update_plan();
         
     private:
@@ -57,12 +57,13 @@ class AvoidObs
         tf::TransformListener listener;
 
         //parameters
-        int plan_rate_; //Default 1 Hz, how often we use A* to update path plan
+        double plan_rate_; //Default 1 Hz, how often we use A* to update path plan
         double map_res_; //Default 0.5 meters
         int n_width_, n_height_;
         double max_range_;
         double plan_range_;
         int clear_decrement_, fill_increment_;
+        bool use_Astar_, use_PotFields_;
 };
 
 #endif

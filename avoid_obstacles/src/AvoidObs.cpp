@@ -27,7 +27,7 @@ AvoidObs::AvoidObs()
     odom_sub_ = nh_.subscribe("odom", 10, &AvoidObs::odomCallback, this);
     goal_sub_ = nh_.subscribe("/move_base_simple/goal", 1, &AvoidObs::goalCallback, this);
     nh_p  = ros::NodeHandle("~");
-    nh_p.param("plan_rate_hz", plan_rate_, 1); //set in avoid_obs.launch
+    nh_p.param("plan_rate_hz", plan_rate_, 1.0); //set in avoid_obs.launch
     nh_p.param("map_res_m", map_res_, 0.5);
     nh_p.param("map_size", n_width_, 200);
     nh_p.param("map_size", n_height_, 200);
@@ -35,6 +35,8 @@ AvoidObs::AvoidObs()
     nh_p.param("plan_range_m",plan_range_, 40.0);
     nh_p.param("clear_decrement",clear_decrement_,-5);
     nh_p.param("fill_increment",fill_increment_,10);
+    nh_p.param("use_Astar", use_Astar_,true);
+    nh_p.param("use_PotFields", use_PotFields_,false);
     ROS_INFO("map_size (n cells): %d", n_width_);
     
     //listener.setExtrapolationLimit(ros::Duration(0.1));
@@ -81,7 +83,7 @@ AvoidObs::AvoidObs()
 
 AvoidObs::~AvoidObs(){}
 
-int AvoidObs::get_plan_rate()
+double AvoidObs::get_plan_rate()
 {
     return plan_rate_;
 }
@@ -132,60 +134,67 @@ bool AvoidObs::update_plan()
 		temp_goal.position.y = bot_pose.position.y+plan_range_*sin(dir_rad);
 	}
 
-	//astar.get_path(bot_pose, temp_goal, costmap, path);
-	//path.header.stamp = ros::Time::now();
-	//path_pub_.publish(path);
-
-	//Potential Fields Test
-	// pfObs is an odom grid map, same info as costmap
-	pfObs.header.stamp = ros::Time::now();
-	pfObs.data.clear();
-	pfObs.data.resize(n_width_*n_height_);
-
-	pf.obs_list.clear();
-	int bot_ix, bot_iy;
-	get_map_indices(pf.bot.x, pf.bot.y, bot_ix, bot_iy);
-
-	for(int ix = bot_ix - 5; ix < bot_ix+5; ++ix)
+	if(use_Astar_)
 	{
-		for(int iy = bot_iy - 5; iy < bot_iy+5; ++iy)
+		astar.get_path(bot_pose, temp_goal, costmap, path);
+		path.header.stamp = ros::Time::now();
+		path_pub_.publish(path);
+	}
+
+	if(use_PotFields_)
+	{
+		//Potential Fields Test
+		// pfObs is an odom grid map, same info as costmap
+		pfObs.header.stamp = ros::Time::now();
+		pfObs.data.clear();
+		pfObs.data.resize(n_width_*n_height_);
+
+		pf.obs_list.clear();
+		int bot_ix, bot_iy;
+		get_map_indices(pf.bot.x, pf.bot.y, bot_ix, bot_iy);
+
+		for(int ix = bot_ix - 5; ix < bot_ix+5; ++ix)
 		{
-			if(get_cost(ix,iy) > 30)
+			for(int iy = bot_iy - 5; iy < bot_iy+5; ++iy)
 			{
-				pfObs.data[iy*n_width_ + ix] = 95;
-				PotentialFields::Obstacle obs;
-				obs.x = map_pose.position.x + ix*map_res_;
-				obs.y = map_pose.position.y + iy*map_res_;
-				//ROS_INFO("Added pfObs x,y: %0.0f, %0.0f",obs.x, obs.y);
-				pf.obs_list.push_back(obs);
+				if(get_cost(ix,iy) > 30)
+				{
+					pfObs.data[iy*n_width_ + ix] = 95;
+					PotentialFields::Obstacle obs;
+					obs.x = map_pose.position.x + ix*map_res_;
+					obs.y = map_pose.position.y + iy*map_res_;
+					//ROS_INFO("Added pfObs x,y: %0.0f, %0.0f",obs.x, obs.y);
+					pf.obs_list.push_back(obs);
+				}
 			}
 		}
-	}
 
-	//testing hard coded obstacle
-	// revealed need to use round for x,y to ix,iy and also offset map by res/2
-	//pf.obs_list.clear();
-	PotentialFields::Obstacle obs;
-	float x = 7, y=0;
-	int ix, iy;
-	for(int k=-1; k<=1; ++k)
-	{
-		get_map_indices(x, y+k, ix, iy);
+		//testing hard coded obstacle
+		// revealed need to use round for x,y to ix,iy and also offset map by res/2
+		//pf.obs_list.clear();
+		PotentialFields::Obstacle obs;
+		float x = 7, y=0;
+		int ix, iy;
+		for(int k=-1; k<=1; ++k)
+		{
+			get_map_indices(x, y+k, ix, iy);
+			pfObs.data[iy*n_width_ + ix] = 50;
+			obs.x = x;
+			obs.y = y+k;
+			pf.obs_list.push_back(obs);
+		}
+		obs.x = 14; obs.y = 4;
+		get_map_indices(obs.x, obs.y, ix, iy);
 		pfObs.data[iy*n_width_ + ix] = 50;
-		obs.x = x;
-		obs.y = y+k;
 		pf.obs_list.push_back(obs);
+		// end testing hard coded obstacle list
+		bot_yaw = astar.get_yaw(bot_pose);
+		geometry_msgs::Twist cmd = pf.update_cmd(bot_yaw);
+		//ROS_INFO("bot_yaw: %0.2f", bot_yaw);
+
+		cmd_pub_.publish(cmd);
+		pf_obs_pub_.publish(pfObs);
 	}
-	obs.x = 14; obs.y = 4;
-	get_map_indices(obs.x, obs.y, ix, iy);
-	pfObs.data[iy*n_width_ + ix] = 50;
-	pf.obs_list.push_back(obs);
-	// end testing hard coded obstacle list
-	bot_yaw = astar.get_yaw(bot_pose);
-	geometry_msgs::Twist cmd = pf.update_cmd(bot_yaw);
-	//ROS_INFO("bot_yaw: %0.2f", bot_yaw);
-	cmd_pub_.publish(cmd);
-	pf_obs_pub_.publish(pfObs);
 }
 
 bool AvoidObs::get_map_indices(float x, float y, int& ix, int& iy)
@@ -233,11 +242,12 @@ void AvoidObs::scanCallback(const sensor_msgs::LaserScan& scan) //use a point cl
 	    float angle  = scan.angle_min +(i * scan.angle_increment);
 
 	    //clear map cells
-	    for(double r = 0.5; r < (range - map_res_/2); r += map_res_)
+	    // only clear at range >= 2.0 meters
+	    for(double r = 2.0; r < (range - map_res_/2); r += map_res_)
 	    {
 	    	double angle_step = r*scan.angle_increment/map_res_;
-	    	//clearing as we pass obstacles, try angle_increment/3 vs /2 (reduce clearing fov per laser)
-	    	for(double a=(angle-scan.angle_increment/3); a < (angle+scan.angle_increment/3); a += angle_step)
+	    	//clearing as we pass obstacles, try angle_increment/4 vs /2 (reduce clearing fov per laser)
+	    	for(double a=(angle-scan.angle_increment/4); a < (angle+scan.angle_increment/4); a += angle_step)
 	    	{
 	    		laser_point.point.x = r*cos(a);
 	    		laser_point.point.y = r*sin(a);
@@ -258,14 +268,19 @@ void AvoidObs::scanCallback(const sensor_msgs::LaserScan& scan) //use a point cl
 	    {
 			laser_point.point.x = range*cos(angle) ;
 			laser_point.point.y = range*sin(angle) ;
-
-			try{
-				listener.transformPoint("odom", laser_point, odom_point);
-				update_cell(odom_point.point.x, odom_point.point.y, fill_increment_);
-			}
-			catch(tf::TransformException& ex){
-				int xa;
-				//ROS_ERROR("Received an exception trying to transform a point : %s", ex.what());
+			int count = 0;
+			while(count < 3)
+			{
+				++count;
+				try{
+					listener.transformPoint("odom", laser_point, odom_point);
+					update_cell(odom_point.point.x, odom_point.point.y, fill_increment_);
+					break;
+				}
+				catch(tf::TransformException& ex){
+					int xa;
+					//ROS_ERROR("Received an exception trying to transform a point : %s", ex.what());
+				}
 			}
 	    }
 	}
