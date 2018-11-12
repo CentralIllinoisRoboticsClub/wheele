@@ -27,10 +27,18 @@ using namespace CIRC;
 VehicleModel::VehicleModel()
 {
     //Topic you want to publish
-    pub_ = nh_.advertise<wheele_msgs::ThrustSteer>("thrust_and_steer", 1);
+    thrust_steer_pub_ = nh_.advertise<wheele_msgs::ThrustSteer>("thrust_and_steer", 1);
+    auto_mode_pub_ = nh_.advertise<std_msgs::Bool>("auto_mode",1);
 
     //Topic you want to subscribe
-    sub_ = nh_.subscribe("wheele_cmd_vel", 1, &VehicleModel::driveCallback, this);
+    auto_cmd_sub_ = nh_.subscribe("wheele_cmd_auto", 1, &VehicleModel::auto_cmd_Callback, this);
+    man_cmd_sub_ = nh_.subscribe("wheele_cmd_man", 1, &VehicleModel::man_cmd_Callback, this);
+    auto_raw_sub_ = nh_.subscribe("auto_raw", 1, &VehicleModel::auto_mode_Callback, this);
+
+    auto_mode_msg.data = false;
+    auto_thresh = 1700;
+    man_thresh = 1600;
+    auto_min = 900;
 
     //parameters
     //nh_.param("max_raw_cmd", raw_cmd_max_, raw_cmd_max_);
@@ -43,8 +51,37 @@ VehicleModel::VehicleModel()
 {
 }*/
 
-void VehicleModel::driveCallback(const wheele_msgs::SpeedCurve& spdCrv)
-  {
+void VehicleModel::auto_cmd_Callback(const wheele_msgs::SpeedCurve& drive_cmd)
+
+    if (auto_mode_msg.data)
+    {
+        send_drive_cmd(drive_cmd);
+    }
+}
+
+void VehicleModel::man_cmd_Callback(const wheele_msgs::SpeedCurve& drive_cmd)
+{
+    if (!auto_mode_msg.data)
+    {
+        send_drive_cmd(drive_cmd);
+    }
+}
+
+void VehicleModel::auto_mode_Callback(const std_msgs::Int16& auto_raw)
+{
+    if (auto_raw.data > auto_min)
+    {
+        if (auto_raw.data > auto_thresh)
+            auto_mode_msg.data = true;
+        else if (auto_raw.data < man_thresh)
+            auto_mode_msg.data = false;
+    }
+
+    auto_mode_pub_.publish(auto_mode_msg);
+}
+
+void VehicleModel::send_drive_cmd(const wheele_msgs::SpeedCurve& spdCrv)
+{
 	//Calculate steering and throttle commands based on speed and curvature
 	//Publish results for Micro Maestro
 
@@ -82,7 +119,7 @@ void VehicleModel::driveCallback(const wheele_msgs::SpeedCurve& spdCrv)
 	/****
 	I believe we do not need to add a timestamp ourselves here, VERIFY
 	*****/
-    	pub_.publish(drive_cmd);
+	thrust_steer_pub_.publish(drive_cmd);
   }
 
 //*********************************************************************

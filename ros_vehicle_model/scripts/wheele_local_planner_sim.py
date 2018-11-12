@@ -4,7 +4,7 @@ import rospy, math
 import numpy as np
 from geometry_msgs.msg import Twist
 from wheele_msgs.msg import SpeedCurve
-from std_msgs.msg import Int16
+from std_msgs.msg import Int16, Bool
 from nav_msgs.msg import Odometry, Path
 from tf.transformations import euler_from_quaternion, quaternion_from_euler
 import tf
@@ -17,13 +17,11 @@ class PathController():
         rospy.init_node('path_controller')
         self.cmd_pub = rospy.Publisher('cmd_vel', Twist, queue_size=1)
         #rospy.Subscriber('cmd_vel', Twist, self.drive_callback, queue_size=1)
-        rospy.Subscriber('auto_mode', Int16, self.auto_mode_callback, queue_size = 1)
         rospy.Subscriber('odom', Odometry, self.odom_callback, queue_size = 1)
         rospy.Subscriber('/move_base/GlobalPlanner/plan', Path, self.path_callback, queue_size = 1)
         rospy.Subscriber('/scan', LaserScan, self.scan_callback, queue_size = 1)
         #<remap from="topic_a_temp" to="/ns1/topic_a">
         
-        self.auto_mode = 1700
         self.vx = 0.0
         self.cum_err = 0
         
@@ -44,9 +42,6 @@ class PathController():
         
         self.tf_listener = tf.TransformListener()
         self.reverse_flag = False
-    
-    def auto_mode_callback(self, data):
-        self.auto_mode = data
         
     def scan_callback(self, data):
         ranges = data.ranges
@@ -175,9 +170,6 @@ class PathController():
         twist.linear.x = self.v #Ks*v+out
         twist.angular.z = self.w
         self.cmd_pub.publish(twist)
-        
-        #if(self.auto_mode > 1600):
-        #self.cmd_pub.publish(spdCrv)
 
 if __name__ == '__main__':
     try:

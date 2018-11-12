@@ -33,9 +33,16 @@ class CANConverter():
         rospy.Subscriber('mag_imu', Imu, self.magIMU_callback, queue_size=2)
         rospy.Subscriber('gps_pose',Vector3Stamped, self.gps_callback, queue_size=5)
         
-        self.cmd_pub = rospy.Publisher('wheele_cmd_vel', SpeedCurve, queue_size=1)
+        self.cmd_pub = rospy.Publisher('wheele_cmd_man', SpeedCurve, queue_size=1)
         self.batt_pub = rospy.Publisher('wheele_batt', Int16, queue_size = 1)
-        self.auto_mode_pub = rospy.Publisher('auto_mode', Int16, queue_size = 1)
+        self.auto_raw_pub = rospy.Publisher('auto_raw', Int16, queue_size = 1)
+        self.raw_cmd_pub = rospy.Publisher('raw_cmd_py', Vector3, queue_size = 10)
+        self.raw_cmd = Vector3()
+        self.cmd = SpeedCurve()
+        self.cmd.speed = 0.0
+        self.cmd.curvature = 0.0
+        
+        self.bad_raw_cmd_count = 0
         
         self.odom_pub = rospy.Publisher('odom', Odometry, queue_size=5)
         #self.odom_ekf_pub = rospy.Publisher('odom_ekf', Odometry, queue_size=5)
@@ -60,6 +67,7 @@ class CANConverter():
         self.raw_speed_cmd = 0
         self.raw_steer_cmd = 0
         self.raw_auto_cmd = 0
+        self.man_count = 0
         self.auto_stop_flag = True
         
         self.gyroz_degx100 = 0
@@ -194,29 +202,32 @@ class CANConverter():
         self.batt_pub.publish(raw_sig)
     
     def update_cmd(self):
-        cmd = SpeedCurve()
-        if(self.raw_speed_cmd < 900 or self.raw_speed_cmd > 2000):
-            cmd.speed = 0
-        elif(self.raw_steer_cmd < 900 or self.raw_steer_cmd > 2000):
-            cmd.curvature = 0
-        else:
-            cmd.speed = (self.raw_speed_cmd-1350)*10.0/370.0 #raw command is 1350 +/- 370
-            cmd.curvature = (self.raw_steer_cmd-1380)*2.5/370.0 #raw command is 1380 +/- 370
-        if(math.fabs(cmd.speed) < 0.5):
-            cmd.speed = 0
         
-        if(self.raw_auto_cmd < 1600):
-            self.cmd_pub.publish(cmd)
-            self.auto_stop_flag = True
+        # Assume the bad raw speed, steer cmd data is not bad at the same time very often
+        if(self.raw_speed_cmd < 900 or self.raw_speed_cmd > 2000): #This happens frequently when driving
+            if(self.raw_steer_cmd < 900 or self.raw_steer_cmd > 2000): #This happens frequently when driving
+                self.bad_raw_cmd_count += 1
+                if(self.bad_raw_cmd_count > 15):
+                    self.cmd.speed = 0
+                    self.cmd.curvature = 0
+            else:
+                self.bad_raw_cmd_count = 0
         else:
-            if(self.auto_stop_flag):
-                cmd.speed = 0
-                self.cmd_pub.publish(cmd)
-                self.auto_stop_flag = False
+            self.cmd.speed = (self.raw_speed_cmd-1350)*10.0/370.0 #raw command is 1350 +/- 370
+            self.cmd.curvature = (self.raw_steer_cmd-1380)*2.5/370.0 #raw command is 1380 +/- 370
+        if(math.fabs(self.cmd.speed) < 0.5):
+            self.cmd.speed = 0
         
-        auto_mode_msg = Int16()
-        auto_mode_msg.data = self.raw_auto_cmd
-        self.auto_mode_pub.publish(auto_mode_msg)
+        self.cmd_pub.publish(self.cmd)
+        
+        self.raw_cmd.x = self.raw_speed_cmd
+        self.raw_cmd.y = self.raw_steer_cmd
+        self.raw_cmd.z = self.raw_auto_cmd
+        self.raw_cmd_pub.publish(self.raw_cmd)
+        
+        auto_raw_msg = Int16()
+        auto_raw_msg.data = self.raw_auto_cmd
+        self.auto_raw_pub.publish(auto_raw_msg)
         #print 'Published cmd'      
                 
     def update_odom(self):
