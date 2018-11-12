@@ -52,7 +52,7 @@ VehicleModel::VehicleModel()
 }*/
 
 void VehicleModel::auto_cmd_Callback(const wheele_msgs::SpeedCurve& drive_cmd)
-
+{
     if (auto_mode_msg.data)
     {
         send_drive_cmd(drive_cmd);

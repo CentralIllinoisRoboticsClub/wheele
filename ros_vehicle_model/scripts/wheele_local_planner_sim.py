@@ -137,6 +137,7 @@ class PathController():
         # Local planner (no dynamic obstacle avoidance, hopefully to be done by global planner called frequently)
         if(not self.goal_reached):
             self.v,self.w,self.goal_reached, alpha, pos_beta = self.diff_drive_controller.compute_vel(self.state,self.goal)
+            self.v = 1.0
             if(self.goal_reached):
                 print "wp goal reached"
                 #print "v: ", v
