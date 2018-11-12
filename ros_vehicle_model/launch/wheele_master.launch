@@ -22,10 +22,16 @@
   <node name="nmea_serial_driver" pkg="nmea_navsat_driver" type="nmea_serial_driver" args="_port:=/dev/GPS_ultimate _baud:=9600 _frame_id:=gps"/>
   <node pkg="gps_modular" type="gps_transform.py" name="gps_transform" output="screen"/>
 
-  <include file="$(find nav_sim)/launch/move_base_nav.launch" />
+  <!-- <include file="$(find nav_sim)/launch/move_base_nav.launch" /> -->
 
   <node pkg="ros_vehicle_model" type="conv_cmd_vel.py" name="conv_cmd_vel" />
-  <node pkg="ros_vehicle_model" type="wheele_local_planner_sim.py" name="wheele_planner" />
+  <node pkg="ros_vehicle_model" type="wheele_local_planner_sim.py" name="wheele_planner" >
+    <remap from="/move_base/GlobalPlanner/plan" to="path" />
+  </node>
+
+  <include file="$(find ros_vehicle_model)/launch/camera_test.launch" />
+
+  <include file="$(find avoid_obstacles)/launch/avoid_obstacles.launch" />
 
 <!-- Remove AMCL
   <include file="$(find circ_2dnav)/launch/circ_amcl_diff.launch" />

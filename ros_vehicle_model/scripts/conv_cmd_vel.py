@@ -10,24 +10,12 @@ from nav_msgs.msg import Odometry
 class CMDConverter():
     def __init__(self):
         rospy.init_node('cmd_converter')
-        self.cmd_pub = rospy.Publisher('wheele_cmd_vel', SpeedCurve, queue_size=1)
+        self.cmd_pub = rospy.Publisher('wheele_cmd_auto', SpeedCurve, queue_size=1)
         rospy.Subscriber('cmd_vel', Twist, self.drive_callback, queue_size=1)
-        rospy.Subscriber('auto_mode', Int16, self.auto_mode_callback, queue_size = 1)
         rospy.Subscriber('odom', Odometry, self.odom_callback, queue_size = 1)
         
-        self.auto_mode = 1300
         self.vx = 0.0
         self.cum_err = 0
-        self.auto_count = 0
-    
-    def auto_mode_callback(self, data):
-        self.auto_mode = data
-        if(self.auto_mode > 1600):
-            self.auto_count += 1
-        else:
-            self.auto_count -= 1
-        if(self.auto_count < 0):
-            self.auto_count = 0
     
     def odom_callback(self,odom):
         self.vx = odom.twist.twist.linear.x
@@ -66,8 +54,7 @@ class CMDConverter():
         
         spdCrv.speed = Ks*v + out
         
-        if(self.auto_count > 20):
-            self.cmd_pub.publish(spdCrv)
+        self.cmd_pub.publish(spdCrv)
 
 if __name__ == '__main__':
     try:
