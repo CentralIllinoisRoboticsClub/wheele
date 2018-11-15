@@ -8,8 +8,8 @@
 #include <algorithm>
 
 //TEMPORARY FOR PAST C array IMPLEMENTATION
-#define NUM_ROWS 150
-#define NUM_COLS 150
+#define NUM_ROWS 301
+#define NUM_COLS 301
 #define NUM_THETA 8
 #define MAX_OPEN 10000
 
