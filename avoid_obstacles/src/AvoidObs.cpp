@@ -93,38 +93,24 @@ double AvoidObs::get_plan_rate()
 
 void AvoidObs::update_cell(float x, float y, int val)
 {
-	int ix, iy;
-	get_map_indices(x,y,ix,iy);
-	if(0 <= ix && ix < n_width_ && 0 <= iy && iy < n_height_)
-	{
-		if(val > 0 && costmap.data[iy*n_width_ + ix] == 0) //ignore first hits
-		{
-			costmap.data[iy*n_width_ + ix] = 1;
-		}
-		else
-		{
-		    if(val > 0)
-		    {
-                if(costmap.data[iy*n_width_ + ix] + val > 100)
-                    costmap.data[iy*n_width_ + ix] = 100;
-                else
-                    costmap.data[iy*n_width_ + ix] += val;
-		    }
-			else if(val < 0)
-			{
-			    if(costmap.data[iy*n_width_ + ix] - val < 0)
-			        costmap.data[iy*n_width_ + ix] = 0;
-			    else
-			        costmap.data[iy*n_width_ + ix] += val;
-			}
-
-		}
-	}
-	if(val > 0)
-	{
-        int cost = costmap.data[iy*n_width_ + ix];
-        printf("update: x,y,ix,iy,cost: %0.1f, %0.1f, %d, %d, %d\n",x,y,ix,iy,cost);
-	}
+    int ix, iy;
+    get_map_indices(x, y, ix, iy);
+    if (0 <= ix && ix < n_width_ && 0 <= iy && iy < n_height_)
+    {
+        if (val > 0 && costmap.data[iy * n_width_ + ix] == 0) //ignore first hits
+        {
+            costmap.data[iy * n_width_ + ix] = 1;
+        }
+        else
+        {
+            if(costmap.data[iy*n_width_ + ix] + val > 100)
+                costmap.data[iy*n_width_ + ix] = 100;
+            else if (costmap.data[iy * n_width_ + ix] + val < 0)
+                costmap.data[iy * n_width_ + ix] = 0;
+            else
+                costmap.data[iy*n_width_ + ix] += val;
+        }
+    }
 }
 
 bool AvoidObs::update_plan()
@@ -251,7 +237,7 @@ void AvoidObs::goalCallback(const geometry_msgs::PoseStamped& data)
 
 void AvoidObs::scanCallback(const sensor_msgs::LaserScan& scan) //use a point cloud instead, use laser2pc.launch
 {
-    ROS_INFO("NEW SCAN");
+    //ROS_INFO("NEW SCAN");
 	// Transform scan to map frame, clear and fill costmap
     listener.waitForTransform("laser", "odom", ros::Time(0), ros::Duration(10.0));
 
