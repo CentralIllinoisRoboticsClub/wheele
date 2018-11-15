@@ -44,8 +44,9 @@ AvoidObs::AvoidObs()
 
     num_obs_cells = 0; //number of obstacle cells
     
-    map_pose.position.x = -(n_width_+1)*map_res_/2; // I believe this is zero by default, check by echoing costmap
-    map_pose.position.y = -(n_height_+1)*map_res_/2; // will need to update x and y as we move
+    map_pose.position.x = -(n_width_/2)*map_res_-map_res_/2;//1.0 -(n_width_/2)*map_res_ + map_res_/2; // I believe this is zero by default, check by echoing costmap
+    map_pose.position.y = -(n_height_/2)*map_res_-map_res_/2;//1.0 -(n_height_/2)*map_res_ + map_res_/2; // will need to update x and y as we move
+    ROS_INFO("map_pose x,y: %0.2f, %0.2f",map_pose.position.x, map_pose.position.y);
     map_pose.orientation.w = 1.0;
     
     costmap.header.stamp = ros::Time::now();
@@ -67,7 +68,9 @@ AvoidObs::AvoidObs()
     bot_yaw = 0.0;
 
     //Potential Fields Obstacle Map for debugging
-    pfObs = costmap;
+    pfObs.header = costmap.header;
+    pfObs.info = costmap.info;
+    pfObs.data.resize(n_width_*n_height_);
 
     //test Astar setup
     /*geometry_msgs::Pose start, goal;
@@ -100,12 +103,27 @@ void AvoidObs::update_cell(float x, float y, int val)
 		}
 		else
 		{
-			costmap.data[iy*n_width_ + ix] += val;
-			if(costmap.data[iy*n_width_ + ix] > 100)
-				costmap.data[iy*n_width_ + ix] = 100;
-			else if(costmap.data[iy*n_width_ + ix] < 0)
-				costmap.data[iy*n_width_ + ix] = 0;
+		    if(val > 0)
+		    {
+                if(costmap.data[iy*n_width_ + ix] + val > 100)
+                    costmap.data[iy*n_width_ + ix] = 100;
+                else
+                    costmap.data[iy*n_width_ + ix] += val;
+		    }
+			else if(val < 0)
+			{
+			    if(costmap.data[iy*n_width_ + ix] - val < 0)
+			        costmap.data[iy*n_width_ + ix] = 0;
+			    else
+			        costmap.data[iy*n_width_ + ix] += val;
+			}
+
 		}
+	}
+	if(val > 0)
+	{
+        int cost = costmap.data[iy*n_width_ + ix];
+        printf("update: x,y,ix,iy,cost: %0.1f, %0.1f, %d, %d, %d\n",x,y,ix,iy,cost);
 	}
 }
 
@@ -173,9 +191,9 @@ bool AvoidObs::update_plan()
 		// revealed need to use round for x,y to ix,iy and also offset map by res/2
 		//pf.obs_list.clear();
 		PotentialFields::Obstacle obs;
-		float x = 7, y=0;
+		float x = 7.0, y=1.0;
 		int ix, iy;
-		for(int k=-1; k<=1; ++k)
+		for(int k=0; k<=0; ++k)
 		{
 			get_map_indices(x, y+k, ix, iy);
 			pfObs.data[iy*n_width_ + ix] = 50;
@@ -183,10 +201,14 @@ bool AvoidObs::update_plan()
 			obs.y = y+k;
 			pf.obs_list.push_back(obs);
 		}
-		obs.x = 14; obs.y = 4;
+		obs.x = 3; obs.y = 3;
 		get_map_indices(obs.x, obs.y, ix, iy);
 		pfObs.data[iy*n_width_ + ix] = 50;
 		pf.obs_list.push_back(obs);
+		obs.x = 1; obs.y = 1;
+        get_map_indices(obs.x, obs.y, ix, iy);
+        pfObs.data[iy*n_width_ + ix] = 50;
+        pf.obs_list.push_back(obs);
 		// end testing hard coded obstacle list
 		bot_yaw = astar.get_yaw(bot_pose);
 		geometry_msgs::Twist cmd = pf.update_cmd(bot_yaw);
@@ -199,8 +221,8 @@ bool AvoidObs::update_plan()
 
 bool AvoidObs::get_map_indices(float x, float y, int& ix, int& iy)
 {
-	ix = boost::math::iround((x-map_pose.position.x)/map_res_);
-	iy = boost::math::iround((y-map_pose.position.y)/map_res_);
+	ix = boost::math::iround((x-map_pose.position.x)/map_res_ - map_res_);
+	iy = boost::math::iround((y-map_pose.position.y)/map_res_ - map_res_);
 	return true;
 }
 
@@ -229,7 +251,9 @@ void AvoidObs::goalCallback(const geometry_msgs::PoseStamped& data)
 
 void AvoidObs::scanCallback(const sensor_msgs::LaserScan& scan) //use a point cloud instead, use laser2pc.launch
 {
+    ROS_INFO("NEW SCAN");
 	// Transform scan to map frame, clear and fill costmap
+    listener.waitForTransform("laser", "odom", ros::Time(0), ros::Duration(10.0));
 
 	geometry_msgs::PointStamped laser_point, odom_point;
 	laser_point.header.frame_id = "laser";
@@ -242,8 +266,8 @@ void AvoidObs::scanCallback(const sensor_msgs::LaserScan& scan) //use a point cl
 	    float angle  = scan.angle_min +(i * scan.angle_increment);
 
 	    //clear map cells
-	    // only clear at range >= 2.0 meters
-	    for(double r = 2.0; r < (range - map_res_/2); r += map_res_)
+	    // only clear at range >= 0.5 meters
+	    /*for(double r = 0.5; r < (range - map_res_); r += map_res_)
 	    {
 	    	double angle_step = r*scan.angle_increment/map_res_;
 	    	//clearing as we pass obstacles, try angle_increment/4 vs /2 (reduce clearing fov per laser)
@@ -261,7 +285,7 @@ void AvoidObs::scanCallback(const sensor_msgs::LaserScan& scan) //use a point cl
 				}
 
 	    	}
-	    }
+	    }*/
 
 	    // fill obstacle cells
 	    if(range < max_range_)
