@@ -46,9 +46,9 @@ class PathController():
     def scan_callback(self, data):
         ranges = data.ranges
         min_range = min(ranges[7:9])
-        if(min_range < 2.5):
+        if(min_range < 2.0):
             self.reverse_flag = True
-        elif(self.reverse_flag and min_range > 4.5):
+        elif(self.reverse_flag and min_range > 3.0):
             self.reverse_flag = False
     
     def odom_callback(self,odom):

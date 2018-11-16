@@ -62,8 +62,8 @@ Astar::~Astar(){}
 
 bool Astar::get_map_indices(float x, float y, int& ix, int& iy)
 {
-	ix = boost::math::iround((x-map_x0)/map_res);
-	iy = boost::math::iround((y-map_y0)/map_res);
+	ix = boost::math::iround((x-map_x0)/map_res - map_res);
+	iy = boost::math::iround((y-map_y0)/map_res - map_res);
 	return true;
 }
 
@@ -212,11 +212,11 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 					//if(action[r1][c1][p1] * motions[m] < 0){cost = cost*10;} //Really slows it down, similar path in the end
 					g2 = g1 + cost;// *DIST; ALREADY MULTIPLIED BY DIST IN arc_move
 
-					//h2 = sqrt((xg-x2)*(xg-x2) + (yg-y2)*(yg-y2));
-					h2 = (xg-x2)*(xg-x2) + (yg-y2)*(yg-y2);
+					h2 = sqrt((xg-x2)*(xg-x2) + (yg-y2)*(yg-y2));
+					//h2 = (xg-x2)*(xg-x2) + (yg-y2)*(yg-y2);
 					//ADD penalty to h2 based on turning toward goal or not
 					h2 += fabs(float(th2-des_heading_deg)/100.0);
-					f2 = g2*g2+h2;
+					f2 = g2+h2;
 					if(nOpen < MAX_OPEN)
 					{
 						nOpen += 1;
@@ -406,7 +406,7 @@ float Astar::simp_move(float next_pos[], float x1, float y1, int th1, int motion
 	#define upRight 4
 	#define downLeft -4
 
-	if(motion < 4)
+	if(abs(motion) <= 2)
 		cost = d;
 	else
 		cost = 1.4*d;
