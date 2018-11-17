@@ -5,7 +5,7 @@
     <param name="map_size" value="301" />
     <param name="max_range" value="40.0" />
     <param name="plan_range" value="35.0" />
-    <param name="clear_decrement" value="-5" />
+    <param name="clear_decrement" value="-10" />
     <param name="fill_increment" value="20" />
     <param name="use_Astar" value="true" />
     <param name="use_PotFields" value="false" />

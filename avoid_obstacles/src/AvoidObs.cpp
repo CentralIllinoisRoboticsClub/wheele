@@ -138,7 +138,7 @@ bool AvoidObs::update_plan()
 		temp_goal.position.y = bot_pose.position.y+plan_range_*sin(dir_rad);
 	}
 
-	if(use_Astar_)
+	if(use_Astar_ && goal_dist_sqd > 0.5)
 	{
 		astar.get_path(bot_pose, temp_goal, costmap, path);
 		path.header.stamp = ros::Time::now();
@@ -249,15 +249,15 @@ void AvoidObs::scanCallback(const sensor_msgs::LaserScan& scan) //use a point cl
 	for (int i = 0; i < scan.ranges.size();i++)
 	{
 	    float range = scan.ranges[i];
-	    float angle  = scan.angle_min +(i * scan.angle_increment);
+	    float angle  = scan.angle_min +(float(i) * scan.angle_increment);
 
 	    //clear map cells
 	    // only clear at range >= 0.5 meters
-	    /*for(double r = 0.5; r < (range - map_res_); r += map_res_)
+	    for(double r = 0.5; r < (range - map_res_*2); r += map_res_*2)
 	    {
-	    	double angle_step = r*scan.angle_increment/map_res_;
-	    	//clearing as we pass obstacles, try angle_increment/4 vs /2 (reduce clearing fov per laser)
-	    	for(double a=(angle-scan.angle_increment/4); a < (angle+scan.angle_increment/4); a += angle_step)
+	    	double angle_step = map_res_*2/r;
+	    	//clearing as we pass obstacles, try angle_increment/3 vs /2 (reduce clearing fov per laser)
+	    	for(double a=(angle-scan.angle_increment/3); a < (angle+scan.angle_increment/3); a += angle_step)
 	    	{
 	    		laser_point.point.x = r*cos(a);
 	    		laser_point.point.y = r*sin(a);
@@ -271,7 +271,7 @@ void AvoidObs::scanCallback(const sensor_msgs::LaserScan& scan) //use a point cl
 				}
 
 	    	}
-	    }*/
+	    }
 
 	    // fill obstacle cells
 	    if(range < max_range_)
