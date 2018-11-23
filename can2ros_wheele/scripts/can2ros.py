@@ -214,7 +214,8 @@ class CANConverter():
                 self.bad_raw_cmd_count = 0
         else:
             self.cmd.speed = (self.raw_speed_cmd-1350)*10.0/370.0 #raw command is 1350 +/- 370
-            self.cmd.curvature = (self.raw_steer_cmd-1380)*2.5/370.0 #raw command is 1380 +/- 370
+            if(self.raw_steer_cmd > 900 and self.raw_steer_cmd < 2000):
+                self.cmd.curvature = (self.raw_steer_cmd-1380)*2.5/370.0 #raw command is 1380 +/- 370
         if(math.fabs(self.cmd.speed) < 0.5):
             self.cmd.speed = 0
         
