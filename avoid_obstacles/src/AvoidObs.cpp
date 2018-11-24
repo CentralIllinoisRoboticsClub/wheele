@@ -1,7 +1,9 @@
 #include "AvoidObs.h"
+#include "AvoidObsCommon.h"
 #include <geometry_msgs/PointStamped.h>
 #include <math.h>
 #include <boost/math/special_functions/round.hpp>
+#include <algorithm>
 
 /**********************************************************************
 * Obstacle Avoidance using a nav_msgs/OccupacyGrid and A* path planning
@@ -16,7 +18,6 @@ AvoidObs::AvoidObs()
 {
     //Topics you want to publish
     costmap_pub_ = nh_.advertise<nav_msgs::OccupancyGrid>("costmap", 1);
-    path_pub_ = nh_.advertise<nav_msgs::Path>("path", 1);
     cmd_pub_ = nh_.advertise<geometry_msgs::Twist>("cmd_vel",10);
 
     pf_obs_pub_ = nh_.advertise<nav_msgs::OccupancyGrid>("pfObs", 1);
@@ -35,7 +36,6 @@ AvoidObs::AvoidObs()
     nh_p.param("plan_range_m",plan_range_, 40.0);
     nh_p.param("clear_decrement",clear_decrement_,-5);
     nh_p.param("fill_increment",fill_increment_,10);
-    nh_p.param("use_Astar", use_Astar_,true);
     nh_p.param("use_PotFields", use_PotFields_,false);
     ROS_INFO("map_size (n cells): %d", n_width_);
     
@@ -58,10 +58,6 @@ AvoidObs::AvoidObs()
     // Fill costmap with zeros
     // cost(ix,iy) = costmap.data[ix*n_height + iy], x-RIGHT, y-UP, 0,0 is bottom left
     costmap.data.resize(n_width_*n_height_);
-    
-    path.header.stamp = ros::Time::now();
-    path.header.frame_id = "odom";
-    //path.poses.push_back(geometry_msgs::PoseStamped)
 
     goal_pose.orientation.w = 1.0;
     bot_pose.orientation.w = 1.0;
@@ -71,17 +67,6 @@ AvoidObs::AvoidObs()
     pfObs.header = costmap.header;
     pfObs.info = costmap.info;
     pfObs.data.resize(n_width_*n_height_);
-
-    //test Astar setup
-    /*geometry_msgs::Pose start, goal;
-    start.position.x = 0;
-    start.position.y = 0;
-    start.orientation.w = 1.0;
-    goal.position.x = 20;
-    goal.position.y = -38;
-    goal.orientation.w = 1.0;
-    astar.get_path(start, goal, costmap, path);*/
-
 }
 
 AvoidObs::~AvoidObs(){}
@@ -95,20 +80,40 @@ void AvoidObs::update_cell(float x, float y, int val)
 {
     int ix, iy;
     get_map_indices(x, y, ix, iy);
-    if (0 <= ix && ix < n_width_ && 0 <= iy && iy < n_height_)
+    if (2 <= ix && ix < n_width_-2 && 2 <= iy && iy < n_height_-2)
     {
-        if (val > 0 && costmap.data[iy * n_width_ + ix] == 0) //ignore first hits
+        int cur_val = costmap.data[iy * n_width_ + ix];
+        if (val > 0 && cur_val == 0) //ignore first hits
         {
             costmap.data[iy * n_width_ + ix] = 1;
         }
         else
         {
-            if(costmap.data[iy*n_width_ + ix] + val > 100)
-                costmap.data[iy*n_width_ + ix] = 100;
-            else if (costmap.data[iy * n_width_ + ix] + val < 0)
-                costmap.data[iy * n_width_ + ix] = 0;
+            if(cur_val + val > 100)
+                cur_val = 100;
+            else if (cur_val + val < 0)
+                cur_val = 0;
             else
-                costmap.data[iy*n_width_ + ix] += val;
+                cur_val += val;
+            costmap.data[iy*n_width_ + ix] = cur_val;
+
+            //adjacent cell inflation
+            if(val > 0)
+            {
+                for(int dx = -2; dx <= 2; ++dx)
+                {
+                    for(int dy = -2; dy <= 2; ++dy)
+                    {
+                        if((dx != 0 or dy != 0))
+                        {
+                            int adj_val = costmap.data[(iy+dy)*n_width_ + ix+dx];
+                            int new_val = cur_val/(1+abs(dx)+abs(dy));
+                            if(adj_val < new_val)
+                                costmap.data[(iy+dy)*n_width_ + ix+dx] = new_val;
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -136,13 +141,6 @@ bool AvoidObs::update_plan()
 			dir_rad = atan2(dy,dx);
 		temp_goal.position.x = bot_pose.position.x+plan_range_*cos(dir_rad);
 		temp_goal.position.y = bot_pose.position.y+plan_range_*sin(dir_rad);
-	}
-
-	if(use_Astar_ && goal_dist_sqd > 0.5)
-	{
-		astar.get_path(bot_pose, temp_goal, costmap, path);
-		path.header.stamp = ros::Time::now();
-		path_pub_.publish(path);
 	}
 
 	if(use_PotFields_)
@@ -196,7 +194,7 @@ bool AvoidObs::update_plan()
         pfObs.data[iy*n_width_ + ix] = 50;
         pf.obs_list.push_back(obs);
 		// end testing hard coded obstacle list
-		bot_yaw = astar.get_yaw(bot_pose);
+		bot_yaw = get_yaw(bot_pose);
 		geometry_msgs::Twist cmd = pf.update_cmd(bot_yaw);
 		//ROS_INFO("bot_yaw: %0.2f", bot_yaw);
 
@@ -299,8 +297,8 @@ void AvoidObs::scanCallback(const sensor_msgs::LaserScan& scan) //use a point cl
 	//odom_point.point.y = -5.0;
 	//update_cell(odom_point.point.x, odom_point.point.y, 100.0);
 
-	costmap.header.stamp = scan.header.stamp;;
-	costmap_pub_.publish(costmap);
+    costmap.header.stamp = scan.header.stamp;
+    costmap_pub_.publish(costmap);
 }
 
 int main(int argc, char **argv)

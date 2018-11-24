@@ -57,7 +57,8 @@ include_directories(
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-add_executable(avoid_obs src/AvoidObs.cpp src/Astar.cpp src/PotentialFields.cpp)
+add_executable(avoid_obs src/AvoidObs.cpp src/PotentialFields.cpp)
+add_executable(astar src/Astar.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -71,5 +72,8 @@ add_executable(avoid_obs src/AvoidObs.cpp src/Astar.cpp src/PotentialFields.cpp)
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(avoid_obs
+  ${catkin_LIBRARIES}
+)
+target_link_libraries(astar
   ${catkin_LIBRARIES}
 )

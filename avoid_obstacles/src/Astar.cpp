@@ -1,4 +1,5 @@
 #include "Astar.h"
+#include "AvoidObsCommon.h"
 #include <geometry_msgs/PoseStamped.h>
 #include <tf/transform_datatypes.h>
 #include <cstdlib>
@@ -11,7 +12,7 @@
 #define NUM_ROWS 301
 #define NUM_COLS 301
 #define NUM_THETA 8
-#define MAX_OPEN 10000
+#define MAX_OPEN 2000
 
 //delta_x for 6 motions, 8 orientations in 45 deg steps (0 to 315)
 const int delta_x[6][8] = {{-1,-1,1,1,1,1,-1,-1},
@@ -28,12 +29,12 @@ const int delta_y[6][8] = {{-1,-1,-1,-1,1,1,1,1},
 					 {-1,1,1,1,1,-1,-1,-1}};
 const int delta_theta[6] = {45,-45,0,0,45,-45};
 
-/*int compareCells (const Astar::Cell& cellA, const Astar::Cell& cellB)
+bool compareCells (Astar::Cell& cellA, Astar::Cell& cellB)
 {
-  return cellB.f > cellA.f? 1 : -1;
-  //return cellB.f < cellA.f;
-}*/
-int compareCells (const void * a, const void * b)
+  //return cellB.f > cellA.f? 1 : -1;
+  return cellB.f < cellA.f; //sort vector large f (at 0) to small f (at end)
+}
+/*int compareCells (const void * a, const void * b)
 {
 
   Astar::Cell *cellA = (Astar::Cell *)a;
@@ -44,8 +45,8 @@ int compareCells (const void * a, const void * b)
 
   //The following ensures floats are compared properly
   // conditon ? IF_TRUE : IF_FALSE
-  return cellB->f > cellA->f ? 1 : -1;
-}
+  return cellB->f > cellA->f ? 1 : -1; // Sort array large f to small f
+}*/
 
 Astar::Astar():
 		num_theta(8),
@@ -54,11 +55,57 @@ Astar::Astar():
 		map_res(0.5),
 		obs_thresh(30)
 {
+    path_pub_ = nh_.advertise<nav_msgs::Path>("path", 1);
+    odom_sub_ = nh_.subscribe("odom", 1, &Astar::odomCallback, this);
+    goal_sub_ = nh_.subscribe("/move_base_simple/goal", 1, &Astar::goalCallback, this);
+    costmap_sub_ = nh_.subscribe("costmap", 1, &Astar::costmapCallback, this);
+    nh_p  = ros::NodeHandle("~");
+    nh_p.param("plan_rate_hz", plan_rate_, 1.0);
+    nh_p.param("max_plan_time_sec", max_plan_time_, 10.0);
+
+    path.header.stamp = ros::Time::now();
+    path.header.frame_id = "odom";
+    //path.poses.push_back(geometry_msgs::PoseStamped)
+
+    bot_pose.orientation.w = 1.0;
+
 	std::cout << "Astar initialized, num_theta: " << num_theta << "\n";
 	std::cout << "Astar updated\n";
 }
 
 Astar::~Astar(){}
+
+double Astar::get_plan_rate()
+{
+    return plan_rate_;
+}
+
+void Astar::odomCallback(const nav_msgs::Odometry& odom)
+{
+    bot_pose.position = odom.pose.pose.position;
+    bot_pose.orientation = odom.pose.pose.orientation;
+}
+
+void Astar::goalCallback(const geometry_msgs::PoseStamped& data)
+{
+    goal_pose = data.pose;
+}
+
+void Astar::costmapCallback(const nav_msgs::OccupancyGrid& map)
+{
+    float dx = goal_pose.position.x - bot_pose.position.x;
+    float dy = goal_pose.position.y - bot_pose.position.y;
+    float goal_dist_sqd = dx*dx + dy*dy;
+    if(goal_dist_sqd > 0.25)
+    {
+        path.header.stamp = ros::Time::now();
+        if(get_path(bot_pose, goal_pose, map, path))
+            path_pub_.publish(path);
+        double duration = (ros::Time::now()-path.header.stamp).toSec();
+        if(duration > 0.1)
+            ROS_WARN("Astar took %0.2f sec",duration);
+    }
+}
 
 bool Astar::get_map_indices(float x, float y, int& ix, int& iy)
 {
@@ -71,12 +118,13 @@ int Astar::is_obs(nav_msgs::OccupancyGrid map, int ix, int iy)
 {
 	int ind = iy*NUM_COLS + ix;
 	if(ind > map.data.size())
-		return 1;
-	if(map.data[iy*NUM_COLS + ix] > obs_thresh)
+		return 100;
+	/*if(map.data[iy*NUM_COLS + ix] > obs_thresh)
 	{
 		return 1;
 	}
-	return 0;
+	return 0;*/
+	return map.data[ind];
 }
 int Astar::is_obs2(nav_msgs::OccupancyGrid map, int ix, int iy)
 {
@@ -106,16 +154,16 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 						nav_msgs::OccupancyGrid map, nav_msgs::Path& path)
 {
 	ros::Time start_time = ros::Time::now();
-	ros::Duration MAX_PLAN_TIME(2.0);
+	ros::Duration MAX_PLAN_TIME(max_plan_time_);
 
-	Cell open[MAX_OPEN] = {{0,0,0,0,0}};
-	//std::vector<Cell> open;
-	//open.resize(MAX_OPEN);
-	/*open.push_back(new_cell(0,1,0,1,0));
-	open.push_back(new_ckcell(1,2,0,2,0));
-	open.push_back(new_cell(0.5,3,3,0,0));
-	open.push_back(new_cell(2.0,4,4,0,0));
-	open.push_back(new_cell(1.5,5,5,0,0));
+	//Cell open[MAX_OPEN] = {{0,0,0,0,0,0,0}};
+	std::vector<Cell> open;
+
+	/*open.push_back(new_cell(0,1,0,1,0,0,0));
+	open.push_back(new_cell(1,2,0,2,0,0,0));
+	open.push_back(new_cell(0.5,3,3,0,0,0,0));
+	open.push_back(new_cell(2.0,4,4,0,0,0,0));
+	open.push_back(new_cell(1.5,5,5,0,0,0,0));
 
 	ROS_INFO("Get path test");
 	printf("before sort\n");
@@ -125,9 +173,13 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 	printf("after sort\n");
 	for(unsigned k=0; k<open.size(); ++k)
 		printf("%f, %f, %f, %f, %d\n", open[k].f, open[k].g, open[k].x, open[k].y, open[k].theta);
-	*/
+	open.clear();*/
+
+	open.resize(MAX_OPEN);
 
 	map_res = map.info.resolution;
+	if(map_res == 0)
+	    return false;
 	map_x0 = map.info.origin.position.x;
 	map_y0 = map.info.origin.position.y;
 
@@ -144,10 +196,21 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 
 	float xg = goal.position.x;
 	float yg = goal.position.y;
-	float goal_deg = get_yaw(goal)*180.0/3.14159;
+	float goal_deg;
+	if(xg == 0 and yg == 0)
+	    goal_deg = 0;
+	else
+	    goal_deg = get_yaw(goal)*180.0/3.14159;
 	int rg; // = boost::math::iround(-yg);
 	int cg; // = boost::math::iround(xg);
 	get_map_indices(xg, yg, cg, rg);
+
+	// Do not try to plan to obstacle goal
+	// TODO: Move goal until not an obstacle
+	//    Another option: move within a large radius of the goal (until c2,r2 is near cg,rg)
+	if(is_obs2(map,cg,rg))
+	    return false;
+
 	int pg = boost::math::iround(goal_deg/45)%8;
 	int thg = pg*45;
 
@@ -182,9 +245,9 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 	while(!done && !no_sol)
 	{
 		// calculate angle to goal
-		float dx = xg-x1;
-		float dy = yg-y1;
-		int des_heading_deg = int(atan2(dy,dx)*180.0/3.1459+360)%360; //c % mod operator returns negative
+		//float dx = xg-x1;
+		//float dy = yg-y1;
+		//int des_heading_deg = int(atan2(dy,dx)*180.0/3.1459+360)%360; //c % mod operator returns negative
 		//md(5);
 		for(m = 0; m<numMotions; m++)
 		{
@@ -205,26 +268,29 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 			if(r2 >= 0 && r2 < NUM_ROWS && c2 >= 0 && c2 < NUM_COLS)
 			{
 				//if(map[r2][c2] == 0 && finished[r2][c2][p2] == 0)
-				if(is_obs2(map,c2,r2) == 0 && finished[r2][c2][p2]==0)
+			    int obs_cost = is_obs(map,c2,r2);
+				if(obs_cost < obs_thresh && finished[r2][c2][p2]==0)
 				{
 					//cost now taken care of in arc_move()
 
 					//if(action[r1][c1][p1] * motions[m] < 0){cost = cost*10;} //Really slows it down, similar path in the end
-					g2 = g1 + cost;// *DIST; ALREADY MULTIPLIED BY DIST IN arc_move
+					g2 = g1 + cost + obs_cost/3;// *DIST; ALREADY MULTIPLIED BY DIST IN arc_move
 
-					h2 = sqrt((xg-x2)*(xg-x2) + (yg-y2)*(yg-y2));
-					//h2 = (xg-x2)*(xg-x2) + (yg-y2)*(yg-y2);
+					//h2 = sqrt((xg-x2)*(xg-x2) + (yg-y2)*(yg-y2));
+					h2 = (xg-x2)*(xg-x2) + (yg-y2)*(yg-y2);
 					//ADD penalty to h2 based on turning toward goal or not
-					h2 += fabs(float(th2-des_heading_deg)/100.0);
+					//h2 += fabs(float(th2-des_heading_deg)/100.0);
 					f2 = g2+h2;
 					if(nOpen < MAX_OPEN)
 					{
 						nOpen += 1;
-						//open.push_back(new_cell(0,0,0,0,0));
+						//open.push_back(new_cell(0,0,0,0,0)); //resized instead
 						open[nOpen-1].f = f2;
 						open[nOpen-1].g = g2;
 						open[nOpen-1].x = x2;
 						open[nOpen-1].y = y2;
+						open[nOpen-1].c = c2;
+						open[nOpen-1].r = r2;
 						open[nOpen-1].theta = th2;
 					}
 					else
@@ -234,6 +300,8 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 						open[0].g = g2;
 						open[0].x = x2;
 						open[0].y = y2;
+						open[0].c = c2;
+						open[0].r = r2;
 						open[0].theta = th2;
 					}
 					finished[r2][c2][p2] = 1;
@@ -256,19 +324,18 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 			//md(6);
 			if(nOpen > 1)
 			{
-				qsort(open,nOpen,sizeof(Cell),compareCells);
-				//std::sort(open.begin(), open.end(), compareCells);
+				//qsort(open,nOpen,sizeof(Cell),compareCells);
+				std::sort(open.begin(), open.begin()+nOpen, compareCells);
 			}
 
 			g1 = open[nOpen-1].g;
 			x1 = open[nOpen-1].x;
 			y1 = open[nOpen-1].y;
+			c1 = open[nOpen-1].c;
+			r1 = open[nOpen-1].r;
 			th1 = open[nOpen-1].theta;
 			dCount = dCount + 1;
 
-			//r1 = boost::math::iround(-y1);
-			//c1 = boost::math::iround(x1);
-			get_map_indices(x1,y1,c1,r1);
 			p1 = (th1/45)%8;
 			nOpen -= 1;
 			if(nOpen < 0)
@@ -285,10 +352,6 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 
 	if(done)
 	{
-		//md(7);
-
-		//r_init = boost::math::iround(-y_init);
-		//c_init = boost::math::iround(x_init);
 		get_map_indices(x_init,y_init,c_init,r_init);
 
 		//Step backwards and store the optimum path
@@ -330,6 +393,8 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 		std::reverse(path.poses.begin(),path.poses.end());
 		//plot(x,y,'g')
 	}
+	if(nOpen > 500)
+	    ROS_INFO("nOpen = %d",nOpen);
 
 	/*
 	path.poses.clear();
@@ -340,23 +405,15 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 	wp.pose.position.x = 15.0;
 	path.poses.push_back(wp);
 	*/
-
+	if(no_sol)
+	    return false;
 	return true;
 }
 
-Astar::Cell Astar::new_cell(float f, float g, float x, float y, int theta)
+Astar::Cell Astar::new_cell(float f, float g, float x, float y, int c, int r, int theta)
 {
-	Cell c = {f,g,x,y,theta};
-	return c;
-}
-
-float Astar::get_yaw(geometry_msgs::Pose pose)
-{
-	double roll, pitch, yaw;
-	tf::Quaternion q(pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w);
-	tf::Matrix3x3 quat_matrix(q);
-	quat_matrix.getRPY(roll, pitch, yaw);
-	return (float)yaw;
+	Cell ce = {f,g,x,y,c,r,theta};
+	return ce;
 }
 
 float Astar::arc_move(float next_pos[], float x1, float y1, int th1, int motion, float d)
@@ -409,7 +466,7 @@ float Astar::simp_move(float next_pos[], float x1, float y1, int th1, int motion
 	if(abs(motion) <= 2)
 		cost = d;
 	else
-		cost = 1.4*d;
+		cost = 1.42*d;
 
 	float x2,y2;
 
@@ -457,4 +514,24 @@ float Astar::simp_move(float next_pos[], float x1, float y1, int th1, int motion
 	next_pos[2] = 0;
 
 	return cost;
+}
+
+int main(int argc, char **argv)
+{
+    //Initiate ROS
+    ros::init(argc, argv, "astar");
+
+    Astar astar;
+    ROS_INFO("Starting A-star path planning");
+    ros::spin();
+    /*int loop_hz = astar.get_plan_rate();
+    ros::Rate rate(loop_hz);
+
+    while(ros::ok())
+    {
+        ros::spinOnce();
+        rate.sleep();
+    }
+    */
+    return 0;
 }

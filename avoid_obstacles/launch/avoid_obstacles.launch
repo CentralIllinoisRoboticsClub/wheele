@@ -7,7 +7,9 @@
     <param name="plan_range" value="35.0" />
     <param name="clear_decrement" value="-5" />
     <param name="fill_increment" value="20" />
-    <param name="use_Astar" value="true" />
     <param name="use_PotFields" value="false" />
+  </node>
+  <node pkg="avoid_obstacles" type="astar" name="astar" output="screen">
+    <param name="max_plan_time_sec" value="10.0" />
   </node>
 </launch>

@@ -10,8 +10,6 @@
 #include <geometry_msgs/Pose.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <tf/transform_listener.h>
-
-#include "Astar.h"
 #include "PotentialFields.h"
 //#include <std_msgs/String.h>
 
@@ -40,30 +38,28 @@ class AvoidObs
         ros::NodeHandle nh_;
         ros::NodeHandle nh_p;
         ros::Publisher costmap_pub_, pf_obs_pub_;
-        ros::Publisher path_pub_, cmd_pub_;
+        ros::Publisher cmd_pub_;
         ros::Subscriber scan_sub_, odom_sub_, goal_sub_;
         
-        Astar astar;
         PotentialFields pf;
 
-        unsigned num_obs_cells; //number of detections given in 0x751
-        
+        unsigned num_obs_cells;
         geometry_msgs::Pose map_pose, pfObs_pose;
         nav_msgs::OccupancyGrid costmap, pfObs;
-        nav_msgs::Path path;
+
         geometry_msgs::Pose bot_pose, goal_pose;
         float bot_yaw;
         
         tf::TransformListener listener;
 
         //parameters
-        double plan_rate_; //Default 1 Hz, how often we use A* to update path plan
+        double plan_rate_; //Default 10 Hz, how often we use potential fields to update cmd_vel
         double map_res_; //Default 0.5 meters
         int n_width_, n_height_;
         double max_range_;
         double plan_range_;
         int clear_decrement_, fill_increment_;
-        bool use_Astar_, use_PotFields_;
+        bool use_PotFields_;
 };
 
 #endif
