@@ -4,10 +4,10 @@
 PotentialFields::PotentialFields() :
 	c_attr(2.0),
 	max_Fattr(2.0),
-	c_repel(1000.0),
-	obs_d0(5.0),
-	obs_d_retreat(1.0),
-	alpha(0.1)
+	c_repel(100.0),
+	obs_d0(3.0),
+	obs_d_retreat(0.7),
+	alpha(0.01)
 {
 	obs_list.clear();
 	bot.x = 0;
@@ -64,7 +64,7 @@ geometry_msgs::Vector3 PotentialFields::get_vxvy()
 	Fattr = get_Fattr();
 	if(Fattr.x == 0 && Fattr.y == 0)
 		return vel;
-	Frepel = get_Frepel(Fattr);
+	Frepel = get_Frepel2(Fattr);
 
 	Frepel_filt.x = alpha*Frepel_filt.x + (1-alpha)*Frepel.x;
 	Frepel_filt.y = alpha*Frepel_filt.y + (1-alpha)*Frepel.y;
@@ -170,6 +170,55 @@ geometry_msgs::Vector3 PotentialFields::get_Frepel(geometry_msgs::Vector3 Fattr)
 	}
 
 	return Frepel;
+}
+
+geometry_msgs::Vector3 PotentialFields::get_Frepel2(geometry_msgs::Vector3 Fattr)
+{
+    geometry_msgs::Vector3 Frepel;
+    Frepel.x = 0;
+    Frepel.y = 0;
+
+    float dx, dy, dmag_sqd, d, w, Fx, Fy, Fxtan, Fytan;
+
+    for(unsigned k = 0; k<obs_list.size(); ++k)
+    {
+        Obstacle obs = obs_list[k];
+        dx = bot.x - obs.x;
+        dy = bot.y - obs.y;
+        //forget obstacle radius for now
+        dmag_sqd = dx*dx + dy*dy;
+        if(dmag_sqd < obs_d0*obs_d0)
+        {
+            //d = sqrt(dmag_sqd);
+            w = c_repel*(1/dmag_sqd - 1/(obs_d0*obs_d0)) / (dmag_sqd*dmag_sqd);
+            Fx = w*dx;
+            Fy = w*dy;
+        }
+        else
+        {
+            Fx = 0;
+            Fy = 0;
+        }
+
+        if(dmag_sqd < obs_d_retreat*obs_d_retreat)
+        {
+            // Use radial force
+            Frepel.x += Fx;
+            Frepel.y += Fy;
+        }
+        else
+        {
+            // Use tangengtial force
+            // TODO: choose mu based on a-star path
+            float mu = 1.0;
+            Fxtan = -mu*Fy;
+            Fytan = mu*Fx;
+            Frepel.x += Fxtan;
+            Frepel.y += Fytan;
+        }
+    }
+
+    return Frepel;
 }
 
 float PotentialFields::get_cos_2d(float ax, float ay, float bx, float by)

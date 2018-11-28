@@ -40,6 +40,7 @@ private:
 	float alpha;
 	geometry_msgs::Vector3 get_Fattr();
 	geometry_msgs::Vector3 get_Frepel(geometry_msgs::Vector3 Fattr);
+	geometry_msgs::Vector3 get_Frepel2(geometry_msgs::Vector3 Fattr);
 	geometry_msgs::Vector3 get_vxvy();
 	float get_cos_2d(float ax, float ay, float bx, float by);
 
