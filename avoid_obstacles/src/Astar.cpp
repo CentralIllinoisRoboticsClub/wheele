@@ -11,23 +11,7 @@
 //TEMPORARY FOR PAST C array IMPLEMENTATION
 #define NUM_ROWS 301
 #define NUM_COLS 301
-#define NUM_THETA 8
 #define MAX_OPEN 2000
-
-//delta_x for 6 motions, 8 orientations in 45 deg steps (0 to 315)
-const int delta_x[6][8] = {{-1,-1,1,1,1,1,-1,-1},
-					 {-1,-1,-1,1,1,1,1,-1},
-					 {-1,-1,0,1,1,1,0,-1},
-					 {1,1,0,-1,-1,-1,0,1},
-					 {1,1,-1,-1,-1,-1,1,1},
-					 {1,1,1,-1,-1,-1,-1,1}};
-const int delta_y[6][8] = {{-1,-1,-1,-1,1,1,1,1},
-					 {1,-1,-1,-1,-1,1,1,1},
-					 {0,-1,-1,-1,0,1,1,1},
-					 {0,1,1,1,0,-1,-1,-1},
-					 {1,1,1,1,-1,-1,-1,-1},
-					 {-1,1,1,1,1,-1,-1,-1}};
-const int delta_theta[6] = {45,-45,0,0,45,-45};
 
 bool compareCells (Astar::Cell& cellA, Astar::Cell& cellB)
 {
@@ -49,7 +33,6 @@ bool compareCells (Astar::Cell& cellA, Astar::Cell& cellB)
 }*/
 
 Astar::Astar():
-		num_theta(8),
 		map_x0(0.0),
 		map_y0(0.0),
 		map_res(0.5),
@@ -69,8 +52,7 @@ Astar::Astar():
 
     bot_pose.orientation.w = 1.0;
 
-	std::cout << "Astar initialized, num_theta: " << num_theta << "\n";
-	std::cout << "Astar updated\n";
+	std::cout << "Astar initialized\n";
 }
 
 Astar::~Astar(){}
@@ -156,23 +138,23 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 	ros::Time start_time = ros::Time::now();
 	ros::Duration MAX_PLAN_TIME(max_plan_time_);
 
-	//Cell open[MAX_OPEN] = {{0,0,0,0,0,0,0}};
+	//Cell open[MAX_OPEN] = {{0,0,0,0,0,0}};
 	std::vector<Cell> open;
 
-	/*open.push_back(new_cell(0,1,0,1,0,0,0));
-	open.push_back(new_cell(1,2,0,2,0,0,0));
-	open.push_back(new_cell(0.5,3,3,0,0,0,0));
-	open.push_back(new_cell(2.0,4,4,0,0,0,0));
-	open.push_back(new_cell(1.5,5,5,0,0,0,0));
+	/*open.push_back(new_cell(0,1,0,1,0,0));
+	open.push_back(new_cell(1,2,0,2,0,0));
+	open.push_back(new_cell(0.5,3,3,0,0,0));
+	open.push_back(new_cell(2.0,4,4,0,0,0));
+	open.push_back(new_cell(1.5,5,5,0,0,0));
 
 	ROS_INFO("Get path test");
 	printf("before sort\n");
 	for(unsigned k=0; k<open.size(); ++k)
-		printf("%f, %f, %f, %f, %d\n", open[k].f, open[k].g, open[k].x, open[k].y, open[k].theta);
+		printf("%f, %f, %f, %f, %d\n", open[k].f, open[k].g, open[k].x, open[k].y);
 	std::sort(open.begin(), open.end(), compareCells);
 	printf("after sort\n");
 	for(unsigned k=0; k<open.size(); ++k)
-		printf("%f, %f, %f, %f, %d\n", open[k].f, open[k].g, open[k].x, open[k].y, open[k].theta);
+		printf("%f, %f, %f, %f, %d\n", open[k].f, open[k].g, open[k].x, open[k].y);
 	open.clear();*/
 
 	open.resize(MAX_OPEN);
@@ -183,24 +165,17 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 	map_x0 = map.info.origin.position.x;
 	map_y0 = map.info.origin.position.y;
 
-	int finished[NUM_ROWS][NUM_COLS][NUM_THETA] = {{{0}}};
-	int action[NUM_ROWS][NUM_COLS][NUM_THETA] = {{{0}}};
+	int finished[NUM_ROWS][NUM_COLS] = {{0}};
+	int action[NUM_ROWS][NUM_COLS] = {{0}};
 	//std::vector<int> finished;
 	//std::vector<int> action;
 
 	float x_init = pose.position.x;
 	float y_init = pose.position.y;
 
-	//get heading
-	float yaw_deg = get_yaw(pose)*180.0/3.14159;
-
 	float xg = goal.position.x;
 	float yg = goal.position.y;
-	float goal_deg;
-	if(xg == 0 and yg == 0)
-	    goal_deg = 0;
-	else
-	    goal_deg = get_yaw(goal)*180.0/3.14159;
+
 	int rg; // = boost::math::iround(-yg);
 	int cg; // = boost::math::iround(xg);
 	get_map_indices(xg, yg, cg, rg);
@@ -211,15 +186,10 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 	if(is_obs2(map,cg,rg))
 	    return false;
 
-	int pg = boost::math::iround(goal_deg/45)%8;
-	int thg = pg*45;
-
 	float x1,y1,g1,f2,g2,h2,DIST,x2,y2,cost;
-	int th1,th2,p1,p2;
-	float next_pos[3] = {0,0,0};
+	float next_pos[2] = {0,0};
 	int r1,c1, nOpen, dCount, m, r2,c2, r_init, c_init, count;
 	int numMotions = 8, rev_motion;
-	//int motions[6] = {-3,-2,-1, 1, 2, 3}; //arc_move
 	int motions[8] = {1,-1,2,-2,3,-3,4,-4}; //simp_move
 	int done, no_sol, a;
 	x1 = x_init;
@@ -227,11 +197,8 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 	//r1 = boost::math::iround(-y_init);
 	//c1 = boost::math::iround(x_init);
 	get_map_indices(x_init, y_init, c1, r1);
-	//p1 = boost::math::iround(yaw_deg/45)%8; //arc_move
-	p1 = 0;
-	th1 = p1*45;
 
-	finished[r1][c1][p1] = 1;
+	finished[r1][c1] = 1;
 	g1 = 0;
 	//h2 = sqrt((xg-x1)^2 + (yg-y1)^2);
 	//f2 = g1+h2;
@@ -244,14 +211,10 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 	dCount = 0;
 	while(!done && !no_sol)
 	{
-		// calculate angle to goal
-		//float dx = xg-x1;
-		//float dy = yg-y1;
-		//int des_heading_deg = int(atan2(dy,dx)*180.0/3.1459+360)%360; //c % mod operator returns negative
 		//md(5);
 		for(m = 0; m<numMotions; m++)
 		{
-			cost = simp_move(next_pos,x1,y1,th1,motions[m],DIST);
+			cost = simp_move(next_pos,x1,y1,motions[m],DIST);
 			if(next_pos[0] == 32767)
 			{
 				printf("Invalid motion in search move\n");
@@ -259,27 +222,23 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 			}
 			x2 = next_pos[0];
 			y2 = next_pos[1];
-			th2 = next_pos[2];
 			//r2 = boost::math::iround(-y2);
 			//c2 = boost::math::iround(x2);
 			get_map_indices(x2, y2, c2, r2);
-			p2 = (th2/45)%8;
 
 			if(r2 >= 0 && r2 < NUM_ROWS && c2 >= 0 && c2 < NUM_COLS)
 			{
-				//if(map[r2][c2] == 0 && finished[r2][c2][p2] == 0)
+				//if(map[r2][c2] == 0 && finished[r2][c2] == 0)
 			    int obs_cost = is_obs(map,c2,r2);
-				if(obs_cost < obs_thresh && finished[r2][c2][p2]==0)
+				if(obs_cost < obs_thresh && finished[r2][c2]==0)
 				{
 					//cost now taken care of in arc_move()
 
-					//if(action[r1][c1][p1] * motions[m] < 0){cost = cost*10;} //Really slows it down, similar path in the end
+					//if(action[r1][c1] * motions[m] < 0){cost = cost*10;} //Really slows it down, similar path in the end
 					g2 = g1 + cost + obs_cost/3;// *DIST; ALREADY MULTIPLIED BY DIST IN arc_move
 
 					//h2 = sqrt((xg-x2)*(xg-x2) + (yg-y2)*(yg-y2));
 					h2 = (xg-x2)*(xg-x2) + (yg-y2)*(yg-y2);
-					//ADD penalty to h2 based on turning toward goal or not
-					//h2 += fabs(float(th2-des_heading_deg)/100.0);
 					f2 = g2+h2;
 					if(nOpen < MAX_OPEN)
 					{
@@ -291,7 +250,6 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 						open[nOpen-1].y = y2;
 						open[nOpen-1].c = c2;
 						open[nOpen-1].r = r2;
-						open[nOpen-1].theta = th2;
 					}
 					else
 					{
@@ -302,10 +260,9 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 						open[0].y = y2;
 						open[0].c = c2;
 						open[0].r = r2;
-						open[0].theta = th2;
 					}
-					finished[r2][c2][p2] = 1;
-					action[r2][c2][p2] = motions[m];
+					finished[r2][c2] = 1;
+					action[r2][c2] = motions[m];
 				}
 			}
 		}
@@ -333,16 +290,14 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 			y1 = open[nOpen-1].y;
 			c1 = open[nOpen-1].c;
 			r1 = open[nOpen-1].r;
-			th1 = open[nOpen-1].theta;
 			dCount = dCount + 1;
 
-			p1 = (th1/45)%8;
 			nOpen -= 1;
 			if(nOpen < 0)
 			{
 				nOpen = 0;
 			}
-			if(r1 == rg && c1 == cg) // && p1 == pg)
+			if(r1 == rg && c1 == cg)
 			{
 				done = 1;
 				//printf("done\n");
@@ -366,8 +321,8 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 		while( (abs(r1-r_init) > 0 || abs(c1-c_init) > 0) && dCount >= -2)
 		{
 			//printf("action: %d\n",action[r1][c1][p1]);
-			rev_motion = -action[r1][c1][p1];
-			cost = simp_move(next_pos,x1,y1,th1,rev_motion,DIST);
+			rev_motion = -action[r1][c1];
+			cost = simp_move(next_pos,x1,y1,rev_motion,DIST);
 			if(next_pos[0] == 32767)
 			{
 				printf("Invalid motion in move\n");
@@ -375,11 +330,9 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 			}
 			x1 = next_pos[0];
 			y1 = next_pos[1];
-			th1 = next_pos[2];
 			//r1 = boost::math::iround(-y1);
 			//c1 = boost::math::iround(x1);
 			get_map_indices(x1, y1, c1, r1);
-			p1 = (th1/45)%8;
 			//count = count+1;
 			//x(count) = x1;
 			//y(count) = y1;
@@ -410,48 +363,13 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 	return true;
 }
 
-Astar::Cell Astar::new_cell(float f, float g, float x, float y, int c, int r, int theta)
+Astar::Cell Astar::new_cell(float f, float g, float x, float y, int c, int r)
 {
-	Cell ce = {f,g,x,y,c,r,theta};
+	Cell ce = {f,g,x,y,c,r};
 	return ce;
 }
 
-float Astar::arc_move(float next_pos[], float x1, float y1, int th1, int motion, float d)
-{
-	//motion will be one of: -3(rev right),-2(rev left),-1(rev), 1(fwd), 2(fwd left), 3(fwd right)
-	float cost;
-	int m_index,p;
-	int th2;
-
-	m_index = motion+3 - (motion > 0);
-	if(th1 < 0){th1 += 360;}
-	if(th1 >= 360){th1 -= 360;}
-	p = (th1/45)%8; //current theta index (0 to 7)
-
-	float net_delta_x = float(delta_x[m_index][p])*d;
-	float net_delta_y = float(delta_y[m_index][p])*d;
-	next_pos[0] = x1 + net_delta_x; //x2
-	next_pos[1] = y1 + net_delta_y; //y2
-	th2 = th1 + delta_theta[m_index]; //th2
-	if(th2 < 0){th2 += 360;}
-	if(th2 >= 360){th2 -= 360;}
-	next_pos[2] = th2;
-
-	//cost = (abs(delta_x[m_index][p]) + abs(delta_y[m_index][p]));
-	cost = (abs(delta_x[m_index][p]) + abs(delta_y[m_index][p])) > 1 ? 1.42*d : d;
-	if(motion < 0)
-	{
-		cost = cost*2;
-	}
-
-	/*if(abs(motion) > 1)
-	{
-		cost = cost*1.4;
-	}*/
-	return cost;
-}
-
-float Astar::simp_move(float next_pos[], float x1, float y1, int th1, int motion, float d)
+float Astar::simp_move(float next_pos[], float x1, float y1, int motion, float d)
 {
 	float cost;
 	#define up 1
@@ -511,7 +429,6 @@ float Astar::simp_move(float next_pos[], float x1, float y1, int th1, int motion
 	}
 	next_pos[0] = x2;
 	next_pos[1] = y2;
-	next_pos[2] = 0;
 
 	return cost;
 }

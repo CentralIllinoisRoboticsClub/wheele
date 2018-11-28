@@ -26,7 +26,6 @@ public:
 		float y; //y coordinate in meters
 		int c;
 		int r;
-		int theta; //orientation in deg (45 deg res)
 	}Cell;
 
 private:
@@ -39,12 +38,11 @@ private:
     void goalCallback(const geometry_msgs::PoseStamped& data);
     void costmapCallback(const nav_msgs::OccupancyGrid& map);
 
-	float arc_move(float next_pos[], float x1, float y1, int th1, int motion, float d);
-	float simp_move(float next_pos[], float x1, float y1, int th1, int motion, float d);
+	float simp_move(float next_pos[], float x1, float y1, int motion, float d);
 
 	//bool compareCells(const Cell& a, const Cell& b);
 
-	Cell new_cell(float f, float g, float x, float y, int c, int r, int theta);
+	Cell new_cell(float f, float g, float x, float y, int c, int r);
 
 	bool get_map_indices(float x, float y, int& ix, int& iy);
 
@@ -55,7 +53,6 @@ private:
 	geometry_msgs::Pose bot_pose, goal_pose;
 	nav_msgs::Path path;
 
-	int num_theta;
 	float map_x0, map_y0, map_res;
 	int obs_thresh;
 
