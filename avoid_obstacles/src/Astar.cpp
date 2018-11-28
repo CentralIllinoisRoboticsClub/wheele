@@ -84,7 +84,7 @@ void Astar::costmapCallback(const nav_msgs::OccupancyGrid& map)
         if(get_path(bot_pose, goal_pose, map, path))
             path_pub_.publish(path);
         double duration = (ros::Time::now()-path.header.stamp).toSec();
-        if(duration > 0.1)
+        if(duration > 0.2)
             ROS_WARN("Astar took %0.2f sec",duration);
     }
 }
@@ -167,6 +167,7 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 
 	int finished[NUM_ROWS][NUM_COLS] = {{0}};
 	int action[NUM_ROWS][NUM_COLS] = {{0}};
+	float open_g[NUM_ROWS][NUM_COLS] = {{0}};
 	//std::vector<int> finished;
 	//std::vector<int> action;
 
@@ -226,46 +227,46 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 			//c2 = boost::math::iround(x2);
 			get_map_indices(x2, y2, c2, r2);
 
-			if(r2 >= 0 && r2 < NUM_ROWS && c2 >= 0 && c2 < NUM_COLS)
-			{
-				//if(map[r2][c2] == 0 && finished[r2][c2] == 0)
-			    int obs_cost = is_obs(map,c2,r2);
-				if(obs_cost < obs_thresh && finished[r2][c2]==0)
-				{
-					//cost now taken care of in arc_move()
+            if (r2 >= 0 && r2 < NUM_ROWS && c2 >= 0 && c2 < NUM_COLS)
+            {
+                int obs_cost = is_obs(map, c2, r2);
+                if (obs_cost < obs_thresh && finished[r2][c2] == 0)
+                {
+                    g2 = g1 + cost + obs_cost / 3;
+                    if (open_g[r2][c2] == 0 or g2 < open_g[r2][c2])
+                    {
+                        open_g[r2][c2] = g2;
 
-					//if(action[r1][c1] * motions[m] < 0){cost = cost*10;} //Really slows it down, similar path in the end
-					g2 = g1 + cost + obs_cost/3;// *DIST; ALREADY MULTIPLIED BY DIST IN arc_move
-
-					//h2 = sqrt((xg-x2)*(xg-x2) + (yg-y2)*(yg-y2));
-					h2 = (xg-x2)*(xg-x2) + (yg-y2)*(yg-y2);
-					f2 = g2+h2;
-					if(nOpen < MAX_OPEN)
-					{
-						nOpen += 1;
-						//open.push_back(new_cell(0,0,0,0,0)); //resized instead
-						open[nOpen-1].f = f2;
-						open[nOpen-1].g = g2;
-						open[nOpen-1].x = x2;
-						open[nOpen-1].y = y2;
-						open[nOpen-1].c = c2;
-						open[nOpen-1].r = r2;
-					}
-					else
-					{
-						printf("nOpen = %d\n",nOpen);
-						open[0].f = f2;
-						open[0].g = g2;
-						open[0].x = x2;
-						open[0].y = y2;
-						open[0].c = c2;
-						open[0].r = r2;
-					}
-					finished[r2][c2] = 1;
-					action[r2][c2] = motions[m];
-				}
-			}
-		}
+                        h2 = sqrt((xg-x2)*(xg-x2) + (yg-y2)*(yg-y2));
+                        //h2 = (xg-x2)*(xg-x2) + (yg-y2)*(yg-y2);
+                        f2 = g2 + h2;
+                        if (nOpen < MAX_OPEN)
+                        {
+                            nOpen += 1;
+                            //open.push_back(new_cell(0,0,0,0,0)); //resized instead
+                            open[nOpen-1].f = f2;
+                            open[nOpen-1].g = g2;
+                            open[nOpen-1].x = x2;
+                            open[nOpen-1].y = y2;
+                            open[nOpen-1].c = c2;
+                            open[nOpen-1].r = r2;
+                        }
+                        else
+                        {
+                            printf("nOpen = %d\n", nOpen);
+                            open[0].f = f2;
+                            open[0].g = g2;
+                            open[0].x = x2;
+                            open[0].y = y2;
+                            open[0].c = c2;
+                            open[0].r = r2;
+                        }
+                        //finished[r2][c2] = 1;
+                        action[r2][c2] = motions[m];
+                    }
+                }
+            }
+        }
 		if(nOpen == 0)
 		{
 			no_sol = 1;
@@ -290,6 +291,7 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 			y1 = open[nOpen-1].y;
 			c1 = open[nOpen-1].c;
 			r1 = open[nOpen-1].r;
+			finished[r1][c1] = 1;
 			dCount = dCount + 1;
 
 			nOpen -= 1;
