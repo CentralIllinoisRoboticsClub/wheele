@@ -11,7 +11,7 @@
 bool compareCells (const Astar::Cell& cellA, const Astar::Cell& cellB)
 {
   //return cellB.f > cellA.f? 1 : -1;
-  return cellB.f < cellA.f; //sort vector large f (at 0) to small f (at end)
+  return cellB.f > cellA.f; //sort vector small f (at 0) to large f (at end)
 }
 
 Astar::Astar():
@@ -261,12 +261,12 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 		}
 		else
 		{
-			g1 = open[nOpen-1].g;
-			x1 = open[nOpen-1].x;
-			y1 = open[nOpen-1].y;
-			c1 = open[nOpen-1].c;
-			r1 = open[nOpen-1].r;
-			open.pop_back();
+			g1 = open[0].g;
+			x1 = open[0].x;
+			y1 = open[0].y;
+			c1 = open[0].c;
+			r1 = open[0].r;
+			open.erase(open.begin());
 			finished[r1][c1] = 1;
 			dCount = dCount + 1;
 
