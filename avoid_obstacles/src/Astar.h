@@ -54,9 +54,10 @@ private:
 	nav_msgs::Path path;
 
 	float map_x0, map_y0, map_res;
-	int obs_thresh;
+	int NUM_ROWS, NUM_COLS;
 
 	//parameters
+	int obs_thresh;
 	double plan_rate_;
 	double max_plan_time_;
 

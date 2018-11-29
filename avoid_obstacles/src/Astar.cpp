@@ -8,10 +8,6 @@
 #include <boost/math/special_functions/round.hpp>
 #include <algorithm>
 
-//TEMPORARY FOR PAST C array IMPLEMENTATION
-#define NUM_ROWS 301
-#define NUM_COLS 301
-
 bool compareCells (const Astar::Cell& cellA, const Astar::Cell& cellB)
 {
   //return cellB.f > cellA.f? 1 : -1;
@@ -22,13 +18,15 @@ Astar::Astar():
 		map_x0(0.0),
 		map_y0(0.0),
 		map_res(0.5),
-		obs_thresh(30)
+		NUM_ROWS(0),
+		NUM_COLS(0)
 {
     path_pub_ = nh_.advertise<nav_msgs::Path>("path", 1);
     odom_sub_ = nh_.subscribe("odom", 1, &Astar::odomCallback, this);
     goal_sub_ = nh_.subscribe("/move_base_simple/goal", 1, &Astar::goalCallback, this);
     costmap_sub_ = nh_.subscribe("costmap", 1, &Astar::costmapCallback, this);
     nh_p  = ros::NodeHandle("~");
+    nh_p.param("obs_thresh", obs_thresh, 50);
     nh_p.param("plan_rate_hz", plan_rate_, 1.0);
     nh_p.param("max_plan_time_sec", max_plan_time_, 10.0);
 
@@ -153,6 +151,8 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 	    return false;
 	map_x0 = map.info.origin.position.x;
 	map_y0 = map.info.origin.position.y;
+	NUM_ROWS = map.info.height;
+	NUM_COLS = map.info.width;
 
 	int finished[NUM_ROWS][NUM_COLS] = {{0}};
 	int action[NUM_ROWS][NUM_COLS] = {{0}};

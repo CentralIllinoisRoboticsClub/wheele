@@ -10,6 +10,7 @@
     <param name="use_PotFields" value="false" />
   </node>
   <node pkg="avoid_obstacles" type="astar" name="astar" output="screen">
+    <param name="obs_thresh" value="30" />
     <param name="max_plan_time_sec" value="10.0" />
   </node>
 </launch>
