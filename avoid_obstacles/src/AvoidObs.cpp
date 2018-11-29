@@ -36,6 +36,8 @@ AvoidObs::AvoidObs()
     nh_p.param("plan_range_m",plan_range_, 40.0);
     nh_p.param("clear_decrement",clear_decrement_,-5);
     nh_p.param("fill_increment",fill_increment_,10);
+    nh_p.param("adjacent_cost_offset", adjacent_cost_offset, 2.0);
+    nh_p.param("adjacent_cost_slope", adjacent_cost_slope, 1.0);
     nh_p.param("use_PotFields", use_PotFields_,false);
     ROS_INFO("map_size (n cells): %d", n_width_);
     
@@ -107,7 +109,7 @@ void AvoidObs::update_cell(float x, float y, int val)
                         if((dx != 0 or dy != 0))
                         {
                             int adj_val = costmap.data[(iy+dy)*n_width_ + ix+dx];
-                            int new_val = cur_val/(1+abs(dx)+abs(dy));
+                            int new_val = double(cur_val)/(adjacent_cost_offset+double(abs(dx)+abs(dy))*adjacent_cost_slope);
                             if(adj_val < new_val)
                                 costmap.data[(iy+dy)*n_width_ + ix+dx] = new_val;
                         }

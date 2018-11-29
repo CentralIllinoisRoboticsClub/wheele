@@ -59,6 +59,7 @@ class AvoidObs
         double max_range_;
         double plan_range_;
         int clear_decrement_, fill_increment_;
+        double adjacent_cost_offset, adjacent_cost_slope;
         bool use_PotFields_;
 };
 

@@ -27,6 +27,7 @@ Astar::Astar():
     costmap_sub_ = nh_.subscribe("costmap", 1, &Astar::costmapCallback, this);
     nh_p  = ros::NodeHandle("~");
     nh_p.param("obs_thresh", obs_thresh, 50);
+    nh_p.param("obs_weight", obs_weight, 0.1);
     nh_p.param("plan_rate_hz", plan_rate_, 1.0);
     nh_p.param("max_plan_time_sec", max_plan_time_, 10.0);
 
@@ -221,7 +222,7 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
                 int obs_cost = is_obs(map, c2, r2);
                 if (obs_cost < obs_thresh && finished[r2][c2] == 0)
                 {
-                    g2 = g1 + cost + obs_cost / 3;
+                    g2 = g1 + cost + float(obs_cost) * obs_weight;
                     if (open_g[r2][c2] == 0 or g2 < open_g[r2][c2])
                     {
                         open_g[r2][c2] = g2;

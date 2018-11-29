@@ -7,10 +7,13 @@
     <param name="plan_range" value="35.0" />
     <param name="clear_decrement" value="-5" />
     <param name="fill_increment" value="20" />
+    <param name="adjacent_cost_offset" value="2.0" />
+    <param name="adjacent_cost_slope" value="1.0" />
     <param name="use_PotFields" value="false" />
   </node>
   <node pkg="avoid_obstacles" type="astar" name="astar" output="screen">
     <param name="obs_thresh" value="30" />
+    <param name="obs_weight" value="0.1" />
     <param name="max_plan_time_sec" value="10.0" />
   </node>
 </launch>

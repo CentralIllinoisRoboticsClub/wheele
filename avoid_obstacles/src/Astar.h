@@ -58,6 +58,7 @@ private:
 
 	//parameters
 	int obs_thresh;
+	double obs_weight;
 	double plan_rate_;
 	double max_plan_time_;
 
