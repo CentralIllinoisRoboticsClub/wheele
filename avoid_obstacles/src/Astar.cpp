@@ -11,26 +11,12 @@
 //TEMPORARY FOR PAST C array IMPLEMENTATION
 #define NUM_ROWS 301
 #define NUM_COLS 301
-#define MAX_OPEN 2000
 
-bool compareCells (Astar::Cell& cellA, Astar::Cell& cellB)
+bool compareCells (const Astar::Cell& cellA, const Astar::Cell& cellB)
 {
   //return cellB.f > cellA.f? 1 : -1;
   return cellB.f < cellA.f; //sort vector large f (at 0) to small f (at end)
 }
-/*int compareCells (const void * a, const void * b)
-{
-
-  Astar::Cell *cellA = (Astar::Cell *)a;
-  Astar::Cell *cellB = (Astar::Cell *)b;
-
-  //This will not properly compare floats
-  //return ( cellB->f - cellA->f );
-
-  //The following ensures floats are compared properly
-  // conditon ? IF_TRUE : IF_FALSE
-  return cellB->f > cellA->f ? 1 : -1; // Sort array large f to small f
-}*/
 
 Astar::Astar():
 		map_x0(0.0),
@@ -84,7 +70,7 @@ void Astar::costmapCallback(const nav_msgs::OccupancyGrid& map)
         if(get_path(bot_pose, goal_pose, map, path))
             path_pub_.publish(path);
         double duration = (ros::Time::now()-path.header.stamp).toSec();
-        if(duration > 0.2)
+        if(duration > 0.05)
             ROS_WARN("Astar took %0.2f sec",duration);
     }
 }
@@ -138,8 +124,10 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 	ros::Time start_time = ros::Time::now();
 	ros::Duration MAX_PLAN_TIME(max_plan_time_);
 
-	//Cell open[MAX_OPEN] = {{0,0,0,0,0,0}};
 	std::vector<Cell> open;
+	std::vector<Cell>::iterator it_insert;
+	//it_insert = std::upper_bound (v.begin(), v.end(), new_cell, compareCells);
+	//open.insert(it_insert, new_cell)
 
 	/*open.push_back(new_cell(0,1,0,1,0,0));
 	open.push_back(new_cell(1,2,0,2,0,0));
@@ -150,14 +138,15 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 	ROS_INFO("Get path test");
 	printf("before sort\n");
 	for(unsigned k=0; k<open.size(); ++k)
-		printf("%f, %f, %f, %f, %d\n", open[k].f, open[k].g, open[k].x, open[k].y);
+		printf("%f, %f, %f, %f\n", open[k].f, open[k].g, open[k].x, open[k].y);
 	std::sort(open.begin(), open.end(), compareCells);
-	printf("after sort\n");
+	Cell cc = new_cell(1.1,6,6,0,0,0);
+	it_insert = std::upper_bound(open.begin(),open.end(),cc,compareCells);
+	open.insert(it_insert,cc);
+	printf("after sort and insert\n");
 	for(unsigned k=0; k<open.size(); ++k)
-		printf("%f, %f, %f, %f, %d\n", open[k].f, open[k].g, open[k].x, open[k].y);
+		printf("%f, %f, %f, %f\n", open[k].f, open[k].g, open[k].x, open[k].y);
 	open.clear();*/
-
-	open.resize(MAX_OPEN);
 
 	map_res = map.info.resolution;
 	if(map_res == 0)
@@ -240,27 +229,19 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
                         h2 = sqrt((xg-x2)*(xg-x2) + (yg-y2)*(yg-y2));
                         //h2 = (xg-x2)*(xg-x2) + (yg-y2)*(yg-y2);
                         f2 = g2 + h2;
-                        if (nOpen < MAX_OPEN)
+
+                        nOpen += 1;
+                        if(nOpen == 1)
                         {
-                            nOpen += 1;
-                            //open.push_back(new_cell(0,0,0,0,0)); //resized instead
-                            open[nOpen-1].f = f2;
-                            open[nOpen-1].g = g2;
-                            open[nOpen-1].x = x2;
-                            open[nOpen-1].y = y2;
-                            open[nOpen-1].c = c2;
-                            open[nOpen-1].r = r2;
+                            open.push_back(new_cell(f2,g2,x2,y2,c2,r2));
                         }
                         else
                         {
-                            printf("nOpen = %d\n", nOpen);
-                            open[0].f = f2;
-                            open[0].g = g2;
-                            open[0].x = x2;
-                            open[0].y = y2;
-                            open[0].c = c2;
-                            open[0].r = r2;
+                            Cell cc = new_cell(f2,g2,x2,y2,c2,r2);
+                            it_insert = std::upper_bound(open.begin(),open.end(),cc,compareCells);
+                            open.insert(it_insert,cc);
                         }
+
                         //finished[r2][c2] = 1;
                         action[r2][c2] = motions[m];
                     }
@@ -279,18 +260,12 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 		}
 		else
 		{
-			//md(6);
-			if(nOpen > 1)
-			{
-				//qsort(open,nOpen,sizeof(Cell),compareCells);
-				std::sort(open.begin(), open.begin()+nOpen, compareCells);
-			}
-
 			g1 = open[nOpen-1].g;
 			x1 = open[nOpen-1].x;
 			y1 = open[nOpen-1].y;
 			c1 = open[nOpen-1].c;
 			r1 = open[nOpen-1].r;
+			open.pop_back();
 			finished[r1][c1] = 1;
 			dCount = dCount + 1;
 
