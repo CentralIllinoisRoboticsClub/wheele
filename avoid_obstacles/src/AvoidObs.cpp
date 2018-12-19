@@ -38,9 +38,14 @@ AvoidObs::AvoidObs()
     nh_p.param("fill_increment",fill_increment_,10);
     nh_p.param("adjacent_cost_offset", adjacent_cost_offset, 2.0);
     nh_p.param("adjacent_cost_slope", adjacent_cost_slope, 1.0);
+    nh_p.param("inflation_factor", inflation_factor_, 2);
+    nh_p.param("reinflate_radius", reinflate_radius_, 2.5);
+    nh_p.param("reinflate_cost_thresh", reinflate_cost_thresh_, 30);
     nh_p.param("use_PotFields", use_PotFields_,false);
     ROS_INFO("map_size (n cells): %d", n_width_);
     
+    reinflate_n_cells_ = boost::math::iround(reinflate_radius_/map_res_);
+
     //listener.setExtrapolationLimit(ros::Duration(0.1));
     listener.waitForTransform("laser", "odom", ros::Time(0), ros::Duration(10.0));
 
@@ -82,7 +87,7 @@ void AvoidObs::update_cell(float x, float y, int val)
 {
     int ix, iy;
     get_map_indices(x, y, ix, iy);
-    if (2 <= ix && ix < n_width_-2 && 2 <= iy && iy < n_height_-2)
+    if (inflation_factor_ <= ix && ix < n_width_-inflation_factor_ && inflation_factor_ <= iy && iy < n_height_-inflation_factor_)
     {
         int cur_val = costmap.data[iy * n_width_ + ix];
         if (val > 0 && cur_val == 0) //ignore first hits
@@ -102,9 +107,9 @@ void AvoidObs::update_cell(float x, float y, int val)
             //adjacent cell inflation
             if(val > 0)
             {
-                for(int dx = -2; dx <= 2; ++dx)
+                for(int dx = -inflation_factor_; dx <= inflation_factor_; ++dx)
                 {
-                    for(int dy = -2; dy <= 2; ++dy)
+                    for(int dy = -inflation_factor_; dy <= inflation_factor_; ++dy)
                     {
                         if((dx != 0 or dy != 0))
                         {
@@ -253,25 +258,29 @@ void AvoidObs::scanCallback(const sensor_msgs::LaserScan& scan) //use a point cl
 
 	    //clear map cells
 	    // only clear at range >= 0.5 meters
-	    for(double r = 0.5; r < (range - map_res_); r += map_res_)
-	    {
-	    	double angle_step = map_res_/r;
-	    	//clearing as we pass obstacles, try angle_increment/3 vs /2 (reduce clearing fov per laser)
-	    	for(double a=(angle-scan.angle_increment/2); a < (angle+scan.angle_increment/2); a += angle_step)
-	    	{
-	    		laser_point.point.x = r*cos(a);
-	    		laser_point.point.y = r*sin(a);
-	    		try{
-					listener.transformPoint("odom", laser_point, odom_point);
-					update_cell(odom_point.point.x, odom_point.point.y, clear_decrement_); //CLEAR_VAL_DECREASE
-				}
-				catch(tf::TransformException& ex){
-					int xa;
-					//ROS_ERROR("Received an exception trying to transform a point : %s", ex.what());
-				}
+        for (double r = 0.5; r < (range - map_res_); r += map_res_)
+        {
+            double angle_step = map_res_ / r;
+            //clearing as we pass obstacles, try angle_increment/3 vs /2 (reduce clearing fov per laser)
+            for (double a = (angle - scan.angle_increment / 2); a < (angle + scan.angle_increment / 2); a += angle_step)
+            {
+                laser_point.point.x = r * cos(a);
+                laser_point.point.y = r * sin(a);
+                try
+                {
+                    listener.transformPoint("odom", laser_point,
+                            odom_point);
+                    update_cell(odom_point.point.x, odom_point.point.y,
+                            clear_decrement_); //CLEAR_VAL_DECREASE
+                }
+                catch (tf::TransformException& ex)
+                {
+                    int xa;
+                    //ROS_ERROR("Received an exception trying to transform a point : %s", ex.what());
+                }
 
-	    	}
-	    }
+            }
+        }
 
 	    // fill obstacle cells
 	    if(range < max_range_)
@@ -294,6 +303,43 @@ void AvoidObs::scanCallback(const sensor_msgs::LaserScan& scan) //use a point cl
 			}
 	    }
 	}
+
+	// Re-apply inflation to all obstacles within a radius of the bot, this covers outside the scan FOV
+	int radius_ind = reinflate_n_cells_;
+	int bot_ix, bot_iy;
+    get_map_indices(bot_pose.position.x, bot_pose.position.y, bot_ix, bot_iy);
+
+    for(int ix = bot_ix - radius_ind; ix < bot_ix+radius_ind; ++ix)
+    {
+        for(int iy = bot_iy - radius_ind; iy < bot_iy+radius_ind; ++iy)
+        {
+            if(get_cost(ix,iy) > reinflate_cost_thresh_)
+            {
+                int cur_val = costmap.data[iy * n_width_ + ix];
+                //adjacent cell inflation
+                for(int dx = -1; dx <= 1; ++dx)
+                {
+                    for(int dy = -1; dy <= 1; ++dy)
+                    {
+                        if((dx != 0 or dy != 0))
+                        {
+                            int iix = ix+dx;
+                            int iiy = iy+dy;
+                            if (0 <= iix && iix < n_width_ && 0 <= iiy && iiy < n_height_)
+                            {
+                                int adj_val = costmap.data[(iiy)*n_width_ + iix];
+                                int new_val = double(cur_val)/(adjacent_cost_offset+double(abs(dx)+abs(dy))*adjacent_cost_slope);
+                                if(adj_val < new_val)
+                                    costmap.data[(iiy)*n_width_ + iix] = new_val;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    // END Re-apply inflation
+
 
 	//odom_point.point.x = 10.0;
 	//odom_point.point.y = -5.0;

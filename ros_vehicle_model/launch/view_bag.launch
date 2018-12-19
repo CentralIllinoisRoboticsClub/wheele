@@ -19,10 +19,11 @@
   <node name="visualisation" pkg="rviz" type="rviz" args="-d $(find avoid_obstacles)/config/view_costmap.rviz" />
 
   <!-- Play the bagfile, loop is an option -->
-  <node pkg="rosbag" type="play" name="rosbag" args="--clock $(arg bagfile)"/>
+  <node pkg="rosbag" type="play" name="rosbag" args="--clock $(arg bagfile) -l -r 1 /costmap:=/costmap_prev /path:=/path_prev" />
 
   <!-- <include file="$(find robot_localization)/launch/gps_transform.launch" /> --> #NOT PUBLISHING FROM BAG /fix
   <node name="gps_transform" pkg="gps_modular" type="abs_gps_transform.py" />
+  <node name="yaw_pub" pkg="gps_modular" type="yaw_pub.py" output = "screen"/>
 
   <!-- <include file="$(find jeep_2dnav)/launch/jeep_amcl_diff.launch" /> -->
 
@@ -33,12 +34,6 @@
   </node>
   -->
 
-  <node pkg="avoid_obstacles" type="avoid_obs" name="avoid_obs" output="screen">
-    <param name="plan_rate_hz" value="4.0" />
-    <param name="map_res_m" value="1.0" />
-    <param name="map_size" value="150" />
-    <param name="max_range" value="40.0" />
-    <param name="plan_range" value="35.0" />
-  </node>
+  <include file="$(find avoid_obstacles)/launch/avoid_obstacles.launch" />
 
 </launch>

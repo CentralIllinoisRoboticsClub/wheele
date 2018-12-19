@@ -60,6 +60,10 @@ class AvoidObs
         double plan_range_;
         int clear_decrement_, fill_increment_;
         double adjacent_cost_offset, adjacent_cost_slope;
+        int inflation_factor_;
+        double reinflate_radius_;
+        int reinflate_n_cells_;
+        int reinflate_cost_thresh_;
         bool use_PotFields_;
 };
 

@@ -8,7 +8,10 @@
     <param name="clear_decrement" value="-5" />
     <param name="fill_increment" value="20" />
     <param name="adjacent_cost_offset" value="2.0" />
-    <param name="adjacent_cost_slope" value="1.0" />
+    <param name="adjacent_cost_slope" value="2.0" />
+    <param name="inflation_factor" value="2" />
+    <param name="reinflate_cost_thresh" value="30" />
+    <param name="reinflate_radius" value="5.0" />
     <param name="use_PotFields" value="false" />
   </node>
   <node pkg="avoid_obstacles" type="astar" name="astar" output="screen">
