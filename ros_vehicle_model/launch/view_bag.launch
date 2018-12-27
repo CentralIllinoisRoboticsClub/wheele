@@ -34,6 +34,10 @@
   </node>
   -->
 
+  <node name="rqt_image_view" pkg="rqt_image_view" type="rqt_image_view" />
   <include file="$(find avoid_obstacles)/launch/avoid_obstacles.launch" />
+  <node pkg="avoid_obstacles" type="waypoint_manager.py" name="waypoint_manager" output="screen"/>
+  <!-- <include file="$(find cone_finder)/launch/train_cone_coords.launch" /> -->
+  <include file="$(find cone_finder)/launch/cone_finder_offboard.launch" />
 
 </launch>

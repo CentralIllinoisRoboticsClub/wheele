@@ -22,11 +22,14 @@ AvoidObs::AvoidObs()
 
     pf_obs_pub_ = nh_.advertise<nav_msgs::OccupancyGrid>("pfObs", 1);
 
+
+    obs_cone_pub_ = nh_.advertise<geometry_msgs::PoseStamped>("obs_cone_pose",1);
+
     //Topic you want to subscribe
-    // leddarCallback will run every time ros sees the topic /received_messages
     scan_sub_ = nh_.subscribe("scan", 50, &AvoidObs::scanCallback, this); //receive laser scan
     odom_sub_ = nh_.subscribe("odom", 10, &AvoidObs::odomCallback, this);
     goal_sub_ = nh_.subscribe("/move_base_simple/goal", 1, &AvoidObs::goalCallback, this);
+    wp_cone_sub_ = nh_.subscribe("wp_cone_pose", 1, &AvoidObs::coneCallback, this);
     nh_p  = ros::NodeHandle("~");
     nh_p.param("plan_rate_hz", plan_rate_, 1.0); //set in avoid_obs.launch
     nh_p.param("map_res_m", map_res_, 0.5);
@@ -40,11 +43,15 @@ AvoidObs::AvoidObs()
     nh_p.param("adjacent_cost_slope", adjacent_cost_slope, 1.0);
     nh_p.param("inflation_factor", inflation_factor_, 2);
     nh_p.param("reinflate_radius", reinflate_radius_, 2.5);
+    nh_p.param("cone_search_radius", cone_search_radius_, 1.0);
     nh_p.param("reinflate_cost_thresh", reinflate_cost_thresh_, 30);
     nh_p.param("use_PotFields", use_PotFields_,false);
+    nh_p.param("cone_obs_thresh", cone_obs_thresh_, 20);
+
     ROS_INFO("map_size (n cells): %d", n_width_);
     
     reinflate_n_cells_ = boost::math::iround(reinflate_radius_/map_res_);
+    cone_search_n_cells_ = boost::math::iround(cone_search_radius_/map_res_);
 
     //listener.setExtrapolationLimit(ros::Duration(0.1));
     listener.waitForTransform("laser", "odom", ros::Time(0), ros::Duration(10.0));
@@ -74,9 +81,54 @@ AvoidObs::AvoidObs()
     pfObs.header = costmap.header;
     pfObs.info = costmap.info;
     pfObs.data.resize(n_width_*n_height_);
+
+    camera_cone_poseStamped.header.frame_id = "odom";
+    obs_cone_poseStamped.header.frame_id = "odom";
+    camera_cone_poseStamped.pose.orientation.w = 1.0;
+    obs_cone_poseStamped.pose.orientation.w = 1.0;
 }
 
 AvoidObs::~AvoidObs(){}
+
+void AvoidObs::coneCallback(const geometry_msgs::PoseStamped& data)
+{
+    camera_cone_poseStamped = data;
+}
+
+bool AvoidObs::check_for_cone_obstacle()
+{
+    double sec_since_cone = (ros::Time::now()-camera_cone_poseStamped.header.stamp).toSec();
+    if(sec_since_cone < 2.0)
+    {
+        int cost, max_nearby_cost = cone_obs_thresh_;
+        int cx, cy;
+        get_map_indices(camera_cone_poseStamped.pose.position.x, camera_cone_poseStamped.pose.position.y, cx, cy);
+        for(int dx = -cone_search_n_cells_; dx <= cone_search_n_cells_; ++dx)
+        {
+            for(int dy = -cone_search_n_cells_; dy <= cone_search_n_cells_; ++dy)
+            {
+                cost = get_cost(cx+dx,cy+dy);
+                if(cost > cone_obs_thresh_ and cost <= 100)
+                {
+                    costmap.data[(cy+dy) * n_width_ + (cx+dx)] = 0;
+                    if(cost > max_nearby_cost)
+                    {
+                        max_nearby_cost = cost;
+                        obs_cone_poseStamped.header.stamp = ros::Time::now();
+                        obs_cone_poseStamped.pose.position.x = map_pose.position.x + (cx+dx)*map_res_ + map_res_/2;
+                        obs_cone_poseStamped.pose.position.y = map_pose.position.y + (cy+dy)*map_res_ + map_res_/2;
+                    }
+                }
+            }
+        }
+        if(max_nearby_cost > cone_obs_thresh_)
+        {
+            obs_cone_pub_.publish(obs_cone_poseStamped);
+            return true;
+        }
+    }
+    return false;
+}
 
 double AvoidObs::get_plan_rate()
 {
@@ -220,7 +272,7 @@ bool AvoidObs::get_map_indices(float x, float y, int& ix, int& iy)
 int AvoidObs::get_cost(int ix, int iy)
 {
 	if(0 > ix || ix >= n_width_ || 0 > iy || iy >= n_height_)
-		return 100;
+		return 200;
 	return costmap.data[iy*n_width_ + ix];
 }
 
@@ -345,6 +397,7 @@ void AvoidObs::scanCallback(const sensor_msgs::LaserScan& scan) //use a point cl
 	//odom_point.point.y = -5.0;
 	//update_cell(odom_point.point.x, odom_point.point.y, 100.0);
 
+    check_for_cone_obstacle(); //clears obstacles near cone pose estimated from camera
     costmap.header.stamp = scan.header.stamp;
     costmap_pub_.publish(costmap);
 }

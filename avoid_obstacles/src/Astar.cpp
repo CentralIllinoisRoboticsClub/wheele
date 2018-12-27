@@ -23,7 +23,7 @@ Astar::Astar():
 {
     path_pub_ = nh_.advertise<nav_msgs::Path>("path", 1);
     odom_sub_ = nh_.subscribe("odom", 1, &Astar::odomCallback, this);
-    goal_sub_ = nh_.subscribe("/move_base_simple/goal", 1, &Astar::goalCallback, this);
+    goal_sub_ = nh_.subscribe("wp_goal", 1, &Astar::goalCallback, this);
     costmap_sub_ = nh_.subscribe("costmap", 1, &Astar::costmapCallback, this);
     nh_p  = ros::NodeHandle("~");
     nh_p.param("obs_thresh", obs_thresh, 50);

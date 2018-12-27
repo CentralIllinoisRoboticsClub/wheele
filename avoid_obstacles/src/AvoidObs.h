@@ -29,17 +29,20 @@ class AvoidObs
         void scanCallback(const sensor_msgs::LaserScan& scan);
         void odomCallback(const nav_msgs::Odometry& odom);
         void goalCallback(const geometry_msgs::PoseStamped& data);
+        void coneCallback(const geometry_msgs::PoseStamped& data);
         
         void update_cell(float x, float y, int val);
         
         bool get_map_indices(float x, float y, int& ix, int& iy);
         int get_cost(int ix, int iy);
+        bool check_for_cone_obstacle();
 
         ros::NodeHandle nh_;
         ros::NodeHandle nh_p;
         ros::Publisher costmap_pub_, pf_obs_pub_;
         ros::Publisher cmd_pub_;
-        ros::Subscriber scan_sub_, odom_sub_, goal_sub_;
+        ros::Publisher obs_cone_pub_;
+        ros::Subscriber scan_sub_, odom_sub_, goal_sub_, wp_cone_sub_;
         
         PotentialFields pf;
 
@@ -48,6 +51,7 @@ class AvoidObs
         nav_msgs::OccupancyGrid costmap, pfObs;
 
         geometry_msgs::Pose bot_pose, goal_pose;
+        geometry_msgs::PoseStamped camera_cone_poseStamped, obs_cone_poseStamped;
         float bot_yaw;
         
         tf::TransformListener listener;
@@ -61,10 +65,11 @@ class AvoidObs
         int clear_decrement_, fill_increment_;
         double adjacent_cost_offset, adjacent_cost_slope;
         int inflation_factor_;
-        double reinflate_radius_;
-        int reinflate_n_cells_;
+        double reinflate_radius_, cone_search_radius_;
+        int reinflate_n_cells_, cone_search_n_cells_;
         int reinflate_cost_thresh_;
         bool use_PotFields_;
+        int cone_obs_thresh_;
 };
 
 #endif
