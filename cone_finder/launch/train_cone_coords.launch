@@ -1,0 +1,5 @@
+<launch>
+  <node pkg="image_transport" type="republish" name="repub" args="compressed in:=/camera/image_raw raw out:=/camera/image_raw" />
+  <node pkg="cone_finder" type="cone_coordinates.py" name="cone_coords" output="screen" />
+  <node pkg="cone_finder" type="cone_pose_trainer.py" name="cone_train" output="screen" />
+</launch>
