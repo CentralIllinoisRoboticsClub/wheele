@@ -41,13 +41,22 @@ class PathController():
         rospy.Subscriber('odom', Odometry, self.odom_callback, queue_size = 1)
         rospy.Subscriber('/move_base/GlobalPlanner/plan', Path, self.path_callback, queue_size = 1)
         rospy.Subscriber('/scan', LaserScan, self.scan_callback, queue_size = 1)
+        rospy.Subscriber('found_cone', Int16, self.found_cone_callback, queue_size = 1)
         
         self.tf_listener = tf.TransformListener()
+        
+        self.found_cone = False
+    
+    def found_cone_callback(self, msg):
+        if(msg.data > 0):
+            self.found_cone = True
+        else:
+            self.found_cone = False
         
     def scan_callback(self, data):
         ranges = data.ranges
         min_range = min(ranges[7:9])
-        if(min_range < 2.0):
+        if(not self.found_cone and min_range < 2.0):
             self.reverse_flag = True
         elif(self.reverse_flag and min_range > 3.0):
             self.reverse_flag = False
@@ -136,7 +145,7 @@ class PathController():
             pass
         
         # Local planner (no dynamic obstacle avoidance, hopefully to be done by global planner called frequently)
-        if(not self.goal_reached):
+        if(not self.goal_reached or self.found_cone):
             self.v,self.w,self.goal_reached, alpha, pos_beta = self.diff_drive_controller.compute_vel(self.state,self.goal)
             self.v = 1.0
             if(self.goal_reached):
