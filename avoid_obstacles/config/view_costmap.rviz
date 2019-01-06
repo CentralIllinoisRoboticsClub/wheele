@@ -7,7 +7,8 @@ Panels:
         - /Global Options1
         - /LaserScan21
         - /Path1
-        - /Cone_obs_odom1
+        - /Obs_Cone_Pose1
+        - /Raw_Cone_Pose1
       Splitter Ratio: 0.5
     Tree Height: 751
   - Class: rviz/Selection
@@ -121,10 +122,10 @@ Visualization Manager:
               {}
             base_link_gps:
               {}
-            odom:
-              base_link:
-                laser:
-                  {}
+        odom:
+          base_link:
+            laser:
+              {}
       Update Interval: 0
       Value: true
     - Alpha: 0.699999988
@@ -302,9 +303,9 @@ Visualization Manager:
       Enabled: true
       Head Length: 0.300000012
       Head Radius: 0.100000001
-      Name: Cone_obs_odom
-      Shaft Length: 1
-      Shaft Radius: 0.0500000007
+      Name: Obs_Cone_Pose
+      Shaft Length: 2
+      Shaft Radius: 0.200000003
       Shape: Arrow
       Topic: /obs_cone_pose
       Unreliable: false
@@ -317,9 +318,9 @@ Visualization Manager:
       Enabled: true
       Head Length: 0.300000012
       Head Radius: 0.100000001
-      Name: Cone_obs_odom
-      Shaft Length: 1
-      Shaft Radius: 0.0500000007
+      Name: Raw_Cone_Pose
+      Shaft Length: 2
+      Shaft Radius: 0.200000003
       Shape: Arrow
       Topic: /raw_cone_pose
       Unreliable: false

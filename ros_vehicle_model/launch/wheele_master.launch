@@ -33,7 +33,7 @@
 
   <include file="$(find avoid_obstacles)/launch/avoid_obstacles.launch" />
 
-  <node pkg="avoid_obstacles" type="waypoint_manager.py" name="waypoint_manager" output="screen"/>
+  <node pkg="avoid_obstacles" type="waypoints_manager.py" name="waypoints_manager" output="screen"/>
 
   <include file="$(find cone_finder)/launch/cone_finder.launch" />
 

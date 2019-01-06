@@ -7,6 +7,7 @@
 #    Watch out for being close up to walls, etc.
 #!/usr/bin/env python
 import cv2
+import imutils
 import numpy as np
 
 def nothing(x):
@@ -47,6 +48,22 @@ cv2.createTrackbar('Fill SE Height','control2',10,99,nothing)
 cv2.createTrackbar('Rect Width','control2',0,99,nothing)
 cv2.createTrackbar('Rect Height','control2',0,99,nothing)
 
+def find_marker(image):
+    # convert the image to grayscale, blur it, and detect edges
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    gray = cv2.GaussianBlur(gray, (5, 5), 0)
+    edged = cv2.Canny(gray, 35, 125)
+    cv2.imshow('edge',edged)
+
+    # find the contours in the edged image and keep the largest one;
+    # we'll assume that this is our piece of paper in the image
+    cnts = cv2.findContours(edged.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+    cnts = imutils.grab_contours(cnts)
+    c = max(cnts, key = cv2.contourArea)
+
+    # compute the bounding box of the of the paper region and return it
+    return cv2.minAreaRect(c)
+
 #img_num = [60,81,94,100,144,158,194,999]
 img_num = range(0,187)
 k = 0
@@ -64,13 +81,16 @@ while k < len(img_num):
     hsv = cv2.cvtColor(orig,cv2.COLOR_BGR2HSV)
     while(1):
         orig = cv2.imread(img_name)
+        
         tree_filt = cv2.inRange(hsv, TREE_MIN, TREE_MAX)
         cv2.imshow('tree_filt',tree_filt)
 
-        #adapt = cv2.adaptiveThreshold(hsv[:,:,0],255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,\
-                                     #cv2.THRESH_BINARY,95,0)
+        gray = cv2.cvtColor(orig.copy(), cv2.COLOR_BGR2GRAY)
+        gray = cv2.GaussianBlur(gray, (25, 25), 0)
+        adapt = cv2.adaptiveThreshold(gray,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,\
+                                     cv2.THRESH_BINARY,15,0)
         #adapt = cv2.bitwise_not(adapt)
-        #cv2.imshow('adapt',adapt)
+        cv2.imshow('adapt',adapt)
 
         rect_w = rect_w +(rect_w==0)
         rect_h = rect_h +(rect_h==0)
@@ -109,6 +129,14 @@ while k < len(img_num):
             if area > max_area and cnt_height/cnt_width > 0.5:# and cnt_height < 40 and cnt_width < 30:
                 max_area = area
                 best_cnt = cnt
+
+        #EDGE DETECTION FOR FINDING CONE
+        marker = find_marker(orig)
+        # draw a bounding box around the image and display it
+        box = cv2.cv.BoxPoints(marker) if imutils.is_cv2() else cv2.boxPoints(marker)
+        box = np.int0(box)
+        cv2.drawContours(orig, [box], -1, (0, 255, 0), 2)
+        #END EDGE DETECTION APPROACH
 
         # finding centroids of best_cnt and draw a circle there
         if(best_cnt.ndim == 3):

@@ -35,6 +35,10 @@ class PathController():
         
         self.reverse_flag = False
         
+        self.tf_listener = tf.TransformListener()
+        
+        self.found_cone = False
+        
         rospy.init_node('path_controller')
         self.cmd_pub = rospy.Publisher('cmd_vel', Twist, queue_size=1)
         #rospy.Subscriber('cmd_vel', Twist, self.drive_callback, queue_size=1)
@@ -42,10 +46,6 @@ class PathController():
         rospy.Subscriber('/move_base/GlobalPlanner/plan', Path, self.path_callback, queue_size = 1)
         rospy.Subscriber('/scan', LaserScan, self.scan_callback, queue_size = 1)
         rospy.Subscriber('found_cone', Int16, self.found_cone_callback, queue_size = 1)
-        
-        self.tf_listener = tf.TransformListener()
-        
-        self.found_cone = False
     
     def found_cone_callback(self, msg):
         if(msg.data > 0):
