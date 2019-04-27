@@ -11,6 +11,7 @@ src/ nodes: ros2can
 
 ### ros2can (ROS2CAN.cpp)
 Subcribes to /cmd_vel (v.x m/s, w.z rad/sec), sends it over CAN id 0x301  
+The cmd CAN output will be zero if topic cmd_vel is not received within param timeout_sec  
 vel_mm_HB LB yaw_rate_decideg_HB LB 80 00 80 00 (in hexadecimal here, e.g. candump can0)
 Unit Test shows CAN data in decimal format using ROS:  
 Note in ros topic /sent_messages -0.1 m/s, -0.3 rad/sec will be:  
