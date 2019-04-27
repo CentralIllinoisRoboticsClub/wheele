@@ -4,29 +4,22 @@ import rospy, math
 import numpy as np
 from geometry_msgs.msg import Twist
 from wheele_msgs.msg import SpeedCurve
-from std_msgs.msg import Int16
+from std_msgs.msg import Int16, Bool
 from nav_msgs.msg import Odometry, Path
 from tf.transformations import euler_from_quaternion, quaternion_from_euler
 import tf
+from sensor_msgs.msg import LaserScan #force robot to at least slow down, stop, backup when close to obstacles
 
 from DiffDriveController import DiffDriveController
 
 class PathController():
     def __init__(self):
-        rospy.init_node('path_controller')
-        self.cmd_pub = rospy.Publisher('wheele_cmd_vel', SpeedCurve, queue_size=1)
-        #rospy.Subscriber('cmd_vel', Twist, self.drive_callback, queue_size=1)
-        rospy.Subscriber('auto_mode', Int16, self.auto_mode_callback, queue_size = 1)
-        rospy.Subscriber('odom', Odometry, self.odom_callback, queue_size = 1)
-        rospy.Subscriber('/move_base/GlobalPlanner/plan', Path, self.path_callback, queue_size = 1)
-        #<remap from="topic_a_temp" to="/ns1/topic_a">
-        
-        self.auto_mode = 1300
+
         self.vx = 0.0
         self.cum_err = 0
         
-        MAX_SPEED = 2.0
-        MAX_OMEGA = 3.0
+        MAX_SPEED = 1.0
+        MAX_OMEGA = 2.0
         self.diff_drive_controller = DiffDriveController(MAX_SPEED, MAX_OMEGA)
         
         x_i = 0.
@@ -40,22 +33,47 @@ class PathController():
         self.v = 0.0
         self.w = 0.0
         
+        self.reverse_flag = False
+        
         self.tf_listener = tf.TransformListener()
+        
+        self.found_cone = False
+        
+        rospy.init_node('path_controller')
+        self.cmd_pub = rospy.Publisher('cmd_vel', Twist, queue_size=1)
+        #rospy.Subscriber('cmd_vel', Twist, self.drive_callback, queue_size=1)
+        rospy.Subscriber('odom', Odometry, self.odom_callback, queue_size = 1)
+        rospy.Subscriber('/move_base/GlobalPlanner/plan', Path, self.path_callback, queue_size = 1)
+        rospy.Subscriber('/scan', LaserScan, self.scan_callback, queue_size = 1)
+        rospy.Subscriber('found_cone', Int16, self.found_cone_callback, queue_size = 1)
     
-    def auto_mode_callback(self, data):
-        self.auto_mode = data
+    def found_cone_callback(self, msg):
+        if(msg.data > 0):
+            self.found_cone = True
+        else:
+            self.found_cone = False
+        
+    def scan_callback(self, data):
+        ranges = data.ranges
+        min_range = min(ranges[7:9])
+        if(not self.found_cone and min_range < 2.0):
+            self.reverse_flag = True
+        elif(self.reverse_flag and min_range > 3.0):
+            self.reverse_flag = False
     
     def odom_callback(self,odom):
+        # This odom pose is in the odom frame, we want the pose in the map frame
+        #   Now done in execute_plan() at a fixed rate using a tf.TransformListener()
         #~ quat = odom.pose.pose.orientation
         #~ quat_list = [quat.x, quat.y, quat.z, quat.w]
         #~ (roll, pitch, yaw) = euler_from_quaternion (quat_list)
         
-        #~ self.state[0] = odom.pose.pose.position.x
+        #~ self.state[0] = odom.pose.pose.position.x + 5.0
         #~ self.state[1] = odom.pose.pose.position.y
         #~ self.state[2] = yaw
         
         self.vx = odom.twist.twist.linear.x
-        
+    
     def path_callback(self,data):
         poses = data.poses
         nPose = len(poses)
@@ -87,9 +105,14 @@ class PathController():
                         break
                     ind1 = ind2
                     k += 1
-                    
-                wp_step = max(int(path_dist/2.0), 1)
+                
+                step_size_meters = 2.0    
+                wp_step = int(step_size_meters/path_dist * nPose)
+                if(wp_step >= nPose):
+                    wp_step = 1
                 init = wp_step
+                print "path dist: ", path_dist
+                print "wp step: ", wp_step
             for k in xrange(init,nPose,wp_step):
                 wp[0] = poses[k].pose.position.x
                 wp[1] = poses[k].pose.position.y
@@ -112,7 +135,7 @@ class PathController():
     def execute_plan(self):
         # Update robot pose state from tf listener
         try:
-            (trans,quat) = self.tf_listener.lookupTransform('/map', '/base_link', rospy.Time(0))
+            (trans,quat) = self.tf_listener.lookupTransform('/odom', '/base_link', rospy.Time(0))
             self.state[0] = trans[0]
             self.state[1] = trans[1]
             #quat_list = [quat.x, quat.y, quat.z, quat.w]
@@ -122,58 +145,42 @@ class PathController():
             pass
         
         # Local planner (no dynamic obstacle avoidance, hopefully to be done by global planner called frequently)
-        if(not self.goal_reached):
+        if(not self.goal_reached or self.found_cone):
             self.v,self.w,self.goal_reached, alpha, pos_beta = self.diff_drive_controller.compute_vel(self.state,self.goal)
+            self.v = 1.0
             if(self.goal_reached):
                 print "wp goal reached"
                 #print "v: ", v
                 #print "w: ", w
                 print "state: ", self.state
                 print "goal: ", self.goal
-        elif( (self.goal_reached or abs(alpha) > 3.14/2) and len(self.waypoints) > 0):
+        elif( len(self.waypoints) > 0 and (self.goal_reached) ): # or abs(alpha) > 3.14/2) ):
             self.goal = self.waypoints.pop(0)
             print "wp goal: ", self.goal
             self.goal_reached = False
         else:
             self.v = 0.
             self.w = 0.
-        
-        # Execute v, w
-        v = self.v
-        w = self.w
-        spdCrv = SpeedCurve()
-        MAX_CURVATURE = 2.0
-        MIN_SPEED = 1.0
-        
-        if(abs(v) > 0.0):
-            curv = w/v
-            if(abs(v) < MIN_SPEED):
-                v = np.sign(v)*MIN_SPEED
-        else:
-            curv = np.sign(w)*MAX_CURVATURE
-            if(abs(curv) > 0.0):
-                v = MIN_SPEED
-        
-        if(abs(curv) > MAX_CURVATURE):
-            curv = np.sign(curv)*MAX_CURVATURE
-        
-        spdCrv.curvature = curv
+            
+        if(self.reverse_flag):
+            self.v = -1.0
+            #self.w = 0.0
         
         #PI control for desired linear speed v
         # controller will output an offset command to add to v
         Ks = 2.5
         Ki = 1.5
         Kp = 1.5
-        err = v - self.vx
+        err = self.v - self.vx
         self.cum_err += err
         self.cum_err = min(1.0, self.cum_err)
         self.cum_err = max(-1.0, self.cum_err)
         out = Kp*err + Ki*self.cum_err
         
-        spdCrv.speed = Ks*v + out
-        
-        if(self.auto_mode > 1600):
-            self.cmd_pub.publish(spdCrv)
+        twist = Twist()
+        twist.linear.x = self.v #Ks*v+out
+        twist.angular.z = self.w
+        self.cmd_pub.publish(twist)
 
 if __name__ == '__main__':
     try:

@@ -25,7 +25,7 @@
   <!-- <include file="$(find nav_sim)/launch/move_base_nav.launch" /> -->
 
   <node pkg="ros_vehicle_model" type="conv_cmd_vel.py" name="conv_cmd_vel" />
-  <node pkg="ros_vehicle_model" type="wheele_local_planner_sim.py" name="wheele_planner" >
+  <node pkg="ros_vehicle_model" type="wheele_local_planner.py" name="wheele_planner" >
     <remap from="/move_base/GlobalPlanner/plan" to="path" />
   </node>
 
