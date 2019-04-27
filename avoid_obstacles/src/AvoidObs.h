@@ -70,6 +70,7 @@ class AvoidObs
         int reinflate_cost_thresh_;
         bool use_PotFields_;
         int cone_obs_thresh_;
+        unsigned scan_count;
 };
 
 #endif

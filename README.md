@@ -5,7 +5,9 @@ All wheele packages will be subdirectories of this wheele folder (repository).
 See https://answers.ros.org/question/257855/git-strategy-for-catkin-and-package-folders/
 
 ## Useful Reference Links:
-http://henrysbench.capnfatz.com/henrys-bench/arduino-projects-tips-and-more/arduino-can-bus-module-1st-network-tutorial/
+https://www.electronicshub.org/arduino-mcp2515-can-bus-tutorial/ 
+http://henrysbench.capnfatz.com/henrys-bench/arduino-projects-tips-and-more/arduino-can-bus-module-1st-network-tutorial/ 
+http://henrysbench.capnfatz.com/henrys-bench/arduino-projects-tips-and-more/arduino-can-bus-module-pin-outs-and-schematics/ 
 
 ## Dependencies
 ### (external) ROS packages used:

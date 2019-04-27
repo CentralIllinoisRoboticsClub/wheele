@@ -7,6 +7,7 @@
 #include <cmath>
 #include <boost/math/special_functions/round.hpp>
 #include <algorithm>
+#include <nav_msgs/GetPlan.h>
 
 bool compareCells (const Astar::Cell& cellA, const Astar::Cell& cellB)
 {
@@ -21,15 +22,22 @@ Astar::Astar():
 		NUM_ROWS(0),
 		NUM_COLS(0)
 {
+    client_ = nh_.serviceClient<nav_msgs::GetPlan>("/move_base/make_plan");
     path_pub_ = nh_.advertise<nav_msgs::Path>("path", 1);
-    odom_sub_ = nh_.subscribe("odom", 1, &Astar::odomCallback, this);
     goal_sub_ = nh_.subscribe("wp_goal", 1, &Astar::goalCallback, this);
+    costmap_pub_ = nh_.advertise<nav_msgs::OccupancyGrid>("mod_costmap", 1);
     costmap_sub_ = nh_.subscribe("costmap", 1, &Astar::costmapCallback, this);
     nh_p  = ros::NodeHandle("~");
     nh_p.param("obs_thresh", obs_thresh, 50);
     nh_p.param("obs_weight", obs_weight, 0.1);
     nh_p.param("plan_rate_hz", plan_rate_, 1.0);
     nh_p.param("max_plan_time_sec", max_plan_time_, 10.0);
+    nh_p.param("rx_odom", rx_odom, true);
+
+    if(rx_odom)
+      odom_sub_ = nh_.subscribe("odom", 1, &Astar::odomCallback, this);
+    else
+      odom_sub_ = nh_.subscribe("slam_out_pose", 1, &Astar::poseCallback, this);
 
     path.header.stamp = ros::Time::now();
     path.header.frame_id = "odom";
@@ -52,26 +60,109 @@ void Astar::odomCallback(const nav_msgs::Odometry& odom)
     bot_pose.position = odom.pose.pose.position;
     bot_pose.orientation = odom.pose.pose.orientation;
 }
+void Astar::poseCallback(const geometry_msgs::PoseStamped& pose)
+{
+    bot_pose.position = pose.pose.position;
+    bot_pose.orientation = pose.pose.orientation;
+}
 
 void Astar::goalCallback(const geometry_msgs::PoseStamped& data)
 {
+    ROS_INFO("Astar goal received");
     goal_pose = data.pose;
 }
 
 void Astar::costmapCallback(const nav_msgs::OccupancyGrid& map)
 {
+    //ROS_INFO("Astar costmap received");
+    map_res = map.info.resolution;
+    map_x0 = map.info.origin.position.x;
+    map_y0 = map.info.origin.position.y;
+    NUM_ROWS = map.info.height;
+    NUM_COLS = map.info.width;
+    costmap = map;
     float dx = goal_pose.position.x - bot_pose.position.x;
     float dy = goal_pose.position.y - bot_pose.position.y;
+
     float goal_dist_sqd = dx*dx + dy*dy;
     if(goal_dist_sqd > 0.25)
     {
+      /*
+        //clear costmap near goal, assuming we are touching a cone
+        float gx = goal_pose.position.x;
+        float gy = goal_pose.position.y;
+        int gix, giy;
+        get_map_indices(gx, gy, gix, giy);
+        //ROS_INFO("map indices: %d, %d",gix,giy);
+        int cone_search_n_cells_ = 2, cost;
+        for(int dix = -cone_search_n_cells_; dix <= cone_search_n_cells_; ++dix)
+        {
+            for(int diy = -cone_search_n_cells_; diy <= cone_search_n_cells_; ++diy)
+            {
+                //ROS_INFO("get cost");
+                cost = get_cost(gix+dix,giy+diy);
+                if(cost > 0 and cost <= 100)
+                {
+                    //ROS_INFO("clear cell");
+                    costmap.data[(giy+diy) * NUM_COLS + (gix+dix)] = 0;
+                }
+            }
+        }
+        //ROS_INFO("pub mod costmap");
+        costmap_pub_.publish(costmap);
+        //END clear costmap near goal
+
+       */
+
+        //Test using move_base getPlan service
+        //ROS_INFO("GetPlan service");
+        nav_msgs::GetPlan plan_srv;
+        //nav_msgs::GetPlan::Response resp;
+        plan_srv.request.start.header.stamp = ros::Time::now();
+        plan_srv.request.start.header.frame_id = "odom";
+        plan_srv.request.goal.header = plan_srv.request.start.header;
+        plan_srv.request.start.pose = bot_pose;
+        plan_srv.request.goal.pose = goal_pose;
+        plan_srv.request.tolerance = 0.5; //See https://github.com/ros-planning/navigation/blob/kinetic-devel/move_base/src/move_base.cpp, PlanService
+
+        ROS_INFO("goal: %0.2f, %0.2f", goal_pose.position.x, goal_pose.position.y);
+        //Time t1 = ros::Time::now();
+        //double duration = (ros::Time::now()-t1).toSec();
+        if(client_.call(plan_srv))
+        {
+          plan_srv.response.plan.header.frame_id = "odom";
+          std::vector<geometry_msgs::PoseStamped> poses = plan_srv.response.plan.poses;
+          unsigned nPts = poses.size();
+          if(nPts > 1)
+            ROS_INFO("close goal x,y: %0.2f, %0.2f", poses[nPts-2].pose.position.x, poses[nPts-2].pose.position.y);
+          else
+            ROS_INFO("No path");
+          //path_pub_.publish(plan_srv.response.plan);
+        }
+        else
+        {
+          ROS_ERROR("Get Plan Service Failed");
+        }
+
+        //End getPlan service
+
+        /*ROS_INFO("Astar finding path");
         path.header.stamp = ros::Time::now();
-        if(get_path(bot_pose, goal_pose, map, path))
+        if(get_path(bot_pose, goal_pose, costmap, path))
             path_pub_.publish(path);
         double duration = (ros::Time::now()-path.header.stamp).toSec();
         if(duration > 0.05)
             ROS_WARN("Astar took %0.2f sec",duration);
+        */
     }
+}
+
+int Astar::get_cost(int ix, int iy)
+{
+  if(0 > ix || ix >= NUM_COLS || 0 > iy || iy >= NUM_ROWS)
+    return 200;
+  //ROS_INFO("index = %d, size = %d", iy*NUM_COLS+ix, costmap.data.size());
+  return costmap.data[iy*NUM_COLS + ix];
 }
 
 bool Astar::get_map_indices(float x, float y, int& ix, int& iy)
@@ -155,12 +246,14 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 	NUM_ROWS = map.info.height;
 	NUM_COLS = map.info.width;
 
-	int finished[NUM_ROWS][NUM_COLS] = {{0}};
+	ROS_INFO("Astar A");
+	int finished[NUM_ROWS][NUM_COLS] = {{0}}; //fails after here with map_res = 0.1, map_size = 1024
 	int action[NUM_ROWS][NUM_COLS] = {{0}};
 	float open_g[NUM_ROWS][NUM_COLS] = {{0}};
 	//std::vector<int> finished;
 	//std::vector<int> action;
 
+	ROS_INFO("Astar B");
 	float x_init = pose.position.x;
 	float y_init = pose.position.y;
 
@@ -174,6 +267,7 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 	// Do not try to plan to obstacle goal
 	// TODO: Move goal until not an obstacle
 	//    Another option: move within a large radius of the goal (until c2,r2 is near cg,rg)
+	ROS_INFO("Astar C");
 	if(is_obs2(map,cg,rg))
 	    return false;
 

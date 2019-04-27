@@ -77,6 +77,8 @@ AvoidObs::AvoidObs()
     bot_pose.orientation.w = 1.0;
     bot_yaw = 0.0;
 
+    scan_count = 0;
+
     //Potential Fields Obstacle Map for debugging
     pfObs.header = costmap.header;
     pfObs.info = costmap.info;
@@ -294,6 +296,10 @@ void AvoidObs::goalCallback(const geometry_msgs::PoseStamped& data)
 
 void AvoidObs::scanCallback(const sensor_msgs::LaserScan& scan) //use a point cloud instead, use laser2pc.launch
 {
+  ++scan_count;
+  if(scan_count % 3 != 0)
+    return;
+  ROS_INFO("AvoidObs processing scan");
     //ROS_INFO("NEW SCAN");
 	// Transform scan to map frame, clear and fill costmap
     listener.waitForTransform("laser", "odom", ros::Time(0), ros::Duration(10.0));
@@ -399,6 +405,7 @@ void AvoidObs::scanCallback(const sensor_msgs::LaserScan& scan) //use a point cl
 
     check_for_cone_obstacle(); //clears obstacles near cone pose estimated from camera
     costmap.header.stamp = scan.header.stamp;
+    ROS_INFO("AvoidObs Publishing costmap");
     costmap_pub_.publish(costmap);
 }
 

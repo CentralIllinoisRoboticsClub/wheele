@@ -11,7 +11,7 @@ import threading
 import time
 
 from dynamic_reconfigure.server import Server
-#from cone_detector.cfg import ConeConfig
+from cone_detector.cfg import ConeConfig
 #from cone_finder.cfg import ConeConfig
 
 rect_w = 3; #3
@@ -32,9 +32,9 @@ class ConeFinder:
         self.bridge = CvBridge()
         time.sleep(1.0)
         
-        self.config = 1
-        #self.config = None
-        #self.srv = Server(ConeConfig, self.config_callback)
+        #self.config = 1
+        self.config = None
+        self.srv = Server(ConeConfig, self.config_callback)
 
         rospy.loginfo("Initialized Cone Finder")
         
@@ -66,10 +66,10 @@ class ConeFinder:
         
         if(not self.config == None):
                 
-            #CONE_MIN = np.array([self.config["hue_min"], self.config["sat_min"], self.config["val_min"]],np.uint8) #75, 86
-            #CONE_MAX = np.array([self.config["hue_max"], self.config["sat_max"],self.config["val_max"]],np.uint8)
-            CONE_MIN = np.array([0, 60, 60],np.uint8) #75, 86;    40,40 or 70,70, # NEW FILTER
-            CONE_MAX = np.array([12,255,255],np.uint8)
+            CONE_MIN = np.array([self.config["hue_min"], self.config["sat_min"], self.config["val_min"]],np.uint8) #75, 86
+            CONE_MAX = np.array([self.config["hue_max"], self.config["sat_max"],self.config["val_max"]],np.uint8)
+            #CONE_MIN = np.array([0, 70, 70],np.uint8) #75, 86
+            #CONE_MAX = np.array([12,255,255],np.uint8)
             hsv = cv2.cvtColor(image_cv,cv2.COLOR_BGR2HSV)
             hsv_filt = cv2.inRange(hsv, CONE_MIN, CONE_MAX)
             
@@ -106,7 +106,6 @@ class ConeFinder:
                     best_cnt = cnt
                     blob_found = True
                     best_height = cnt_height
-                    best_width = cnt_width
                     best_x = x
                     best_y = y
 
@@ -126,21 +125,19 @@ class ConeFinder:
                     py_norm = (cy-img_h/2.0)/float(img_h)
                     ph_norm = best_height/float(img_h)
                     #ideal_py_norm = -0.15
-                    top_width = abs(best_x[-3]-best_x[2])
-                    print("norm px,py,ph,miny,top_w: ", px_norm, py_norm, ph_norm, min(best_y), top_width)
+                    print("norm px,py,ph,miny,top_w: ", px_norm, py_norm, ph_norm, min(best_y), abs(best_x[-3]-best_x[2]))
                     
-                    if( (best_width > top_width + 10 and best_width > 30) or (min(best_y) < 10 and best_width > 70) ): # NEW FILTER
-                        local_x, cone_clear = self.calc_cone_x(ph_norm, min(best_y), top_width )
-                        #local_x = 0.5/ph_norm
-                        if(local_x > 0.1 and local_x < 4.0 and py_norm < 0): #abs(py_norm-ideal_py_norm) < 0.05):
-                            local_y = -1.18 * local_x * px_norm
-                            cone_pose = PoseStamped()
-                            cone_pose.header.frame_id = "base_link"
-                            cone_pose.header.stamp = rospy.Time.now()
-                            cone_pose.pose.orientation.w = 1.0
-                            cone_pose.pose.position.x = local_x
-                            cone_pose.pose.position.y = local_y
-                            self.pub_cone_pose.publish(cone_pose)
+                    local_x, cone_clear = self.calc_cone_x(ph_norm, min(best_y), abs(best_x[-3]-best_x[2]) )
+                    #local_x = 0.5/ph_norm
+                    if(local_x > 0.1 and local_x < 4.0 and py_norm < 0): #abs(py_norm-ideal_py_norm) < 0.05):
+                        local_y = -1.18 * local_x * px_norm
+                        cone_pose = PoseStamped()
+                        cone_pose.header.frame_id = "base_link"
+                        cone_pose.header.stamp = rospy.Time.now()
+                        cone_pose.pose.orientation.w = 1.0
+                        cone_pose.pose.position.x = local_x
+                        cone_pose.pose.position.y = local_y
+                        self.pub_cone_pose.publish(cone_pose)
         
         #rospy.loginfo("Cone Search Done")
         self.thread_lock.release()

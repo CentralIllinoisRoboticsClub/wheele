@@ -32,11 +32,14 @@ private:
 	ros::NodeHandle nh_;
     ros::NodeHandle nh_p;
     ros::Subscriber odom_sub_, goal_sub_, costmap_sub_;
-    ros::Publisher path_pub_;
+    ros::Publisher path_pub_, costmap_pub_;
+    ros::ServiceClient client_;
 
     void odomCallback(const nav_msgs::Odometry& odom);
+    void poseCallback(const geometry_msgs::PoseStamped& pose);
     void goalCallback(const geometry_msgs::PoseStamped& data);
     void costmapCallback(const nav_msgs::OccupancyGrid& map);
+    int get_cost(int ix, int iy);
 
 	float simp_move(float next_pos[], float x1, float y1, int motion, float d);
 
@@ -52,6 +55,7 @@ private:
 
 	geometry_msgs::Pose bot_pose, goal_pose;
 	nav_msgs::Path path;
+	nav_msgs::OccupancyGrid costmap;
 
 	float map_x0, map_y0, map_res;
 	int NUM_ROWS, NUM_COLS;
@@ -61,6 +65,7 @@ private:
 	double obs_weight;
 	double plan_rate_;
 	double max_plan_time_;
+	bool rx_odom;
 
 };
 

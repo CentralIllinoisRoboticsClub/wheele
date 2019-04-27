@@ -1,7 +1,7 @@
 <!-- Run the dnn_detect node -->
 <launch>
   <!-- namespace for camera input -->
-  <arg name="camera" default="/camera"/>
+  <arg name="camera" default="/raspicam_node"/>
   <arg name="image" default="image"/>
   <arg name="transport" default="compressed"/>
 
@@ -9,8 +9,11 @@
     type="dnn_detect" output="screen" respawn="false">
     <param name="image_transport" value="$(arg transport)"/>
     <param name="publish_images" value="true" />
-    <param name="data_dir" value="$(find dnn_detect)/model"/>
-    <param name="min_confidence" value="0.5" />
+    <param name="data_dir" value="$(find cone_finder)/model"/>
+    <!-- <param name="protonet_file" value="frozen_inference_graph.pb"/> -->
+    <param name="protonet_file" value="cone_or_none_iter339.prototxt"/>
+    <param name="caffe_model_file" value="cone_or_none_iter339.caffemodel"/>
+    <param name="min_confidence" value="0.1" />
     <remap from="/camera/compressed" 
         to="$(arg camera)/$(arg image)/$(arg transport)"/>
     <remap from="/camera_info" to="$(arg camera)/camera_info"/>
