@@ -4,6 +4,27 @@ Place this folder in your catkin_ws/src directory.
 All wheele packages will be subdirectories of this wheele folder (repository).
 See https://answers.ros.org/question/257855/git-strategy-for-catkin-and-package-folders/
 
+## ros_vehicle_model package
+Obsolete nodes: VehicleModel, MicroMaestro
+scripts/ nodes: wheele_local_planner.py
+src/ nodes: ros2can
+
+### ros2can (ROS2CAN.cpp)
+Subcribes to /cmd_vel (v.x m/s, w.z rad/sec), sends it over CAN id 0x301  
+vel_mm_HB LB yaw_rate_decideg_HB LB 80 00 80 00 (in hexadecimal here, e.g. candump can0)
+Unit Test shows CAN data in decimal format using ROS:  
+Note in ros topic /sent_messages -0.1 m/s, -0.3 rad/sec will be:  
+data: [127, 156, 127, 85, 128, 0, 128, 0]
+```
+export ROS_MASTER_URI=http://<hostname>:11311/
+# ~/.bashrc, likely your laptop hostname
+# Uncommenting the wheelepi one should automatically set your laptop as ROS_MASTER_URI
+roscore
+rosrun ros_vehicle_model ros2can
+rostopic echo /sent_messages | grep data #remove grep if multiple can IDs in future
+rostopic pub --once /cmd_vel geometry_msgs/Twist  '{linear:  {x: -0.1, y: 0.0, z: 0.0}, angular: {x: 0.0,y: 0.0,z: -0.3}}'
+```
+
 ## Useful Reference Links:
 http://henrysbench.capnfatz.com/henrys-bench/arduino-projects-tips-and-more/arduino-can-bus-module-1st-network-tutorial/
 
