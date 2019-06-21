@@ -97,14 +97,17 @@ class CANConverter():
         x = data.vector.x
         y = data.vector.y
         gps_theta = math.atan2(y,x)
-        (trans,quat) = self.tf_listener.lookupTransform('/map', '/base_link', rospy.Time(0))
-        xb = trans[0]
-        yb = trans[1]
-        if(self.botx**2 + self.boty**2 > 20.**2):
-            print "Updating odom heading based on gps"
-            bot_theta = math.atan2(yb,xb)
-            diff_theta = gps_theta - bot_theta
-            self.odom_heading_deg += diff_theta*180./3.14
+        try:
+            (trans,quat) = self.tf_listener.lookupTransform('/map', '/base_link', rospy.Time(0))
+            xb = trans[0]
+            yb = trans[1]
+            if(self.botx**2 + self.boty**2 > 20.**2):
+                print "Updating odom heading based on gps"
+                bot_theta = math.atan2(yb,xb)
+                diff_theta = gps_theta - bot_theta
+                self.odom_heading_deg += diff_theta*180./3.14
+        except:
+            aa=0
         
 
     def magIMU_callback(self, data):
@@ -249,7 +252,7 @@ class CANConverter():
         delta_left_enc = self.get_delta_enc(self.left_enc, self.prev_left_enc)
         delta_right_enc = self.get_delta_enc(self.right_enc, self.prev_right_enc)
         
-        dtheta_enc_deg = float(delta_right_enc - delta_left_enc) / BOT_WIDTH * 180.0 / 3.1416
+        dtheta_enc_deg = float(delta_right_enc - delta_left_enc) / COUNTS_PER_METER / BOT_WIDTH * 180.0 / 3.1416
         
         dmeters = float(delta_left_enc + delta_right_enc)/2.0 / COUNTS_PER_METER #900 counts/meter
         #print 'dmeters: ', dmeters
@@ -267,6 +270,7 @@ class CANConverter():
         else:
             #print 'use gyro'
             dtheta_deg = dtheta_gyro_deg
+        dtheta_deg = dtheta_enc_deg
             
         #print 'dtheta gyro deg:', dtheta_gyro_deg
         #print 'dtheta enc deg:', dtheta_enc_deg

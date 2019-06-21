@@ -18,5 +18,6 @@
     <param name="obs_thresh" value="30" />
     <param name="obs_weight" value="0.1" />
     <param name="max_plan_time_sec" value="10.0" />
+    <!-- <remap from="wp_goal" to="move_base_simple/goal" /> -->
   </node>
 </launch>
