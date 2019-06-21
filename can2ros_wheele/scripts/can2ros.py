@@ -262,7 +262,7 @@ class CANConverter():
             dtheta_gyro_deg = 0
         else:
             gz_dps = gyroz_raw_dps+g_bias_dps
-            dtheta_gyro_deg = gz_dps*dt*360.0/375.0 #HACK, WHY!!??
+            dtheta_gyro_deg = gz_dps*dt*360.0/368.2 #*360.0/375.0 # Scaling needed due to static pitch/roll IMU mount?
 
         if(abs(dtheta_gyro_deg) > MAX_DTHETA_GYRO_deg):
             print 'no gyro'
