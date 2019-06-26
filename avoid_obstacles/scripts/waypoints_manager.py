@@ -47,15 +47,19 @@ class WaypointManager():
         self.map_wp.header.frame_id = "map"
         self.map_wp.pose.orientation.w = 1.0
         
+        deg2meters = 111111.11
+        meters2deg = 1.0/deg2meters
+        #longitude, latitude
+        #x,y +x=east, +y=north
         waypoints  = np.array([
-          [lon_start, lat_start],
-          [lon1, lat1],
-          [lon2, lat2] ])
+          [0, 0],  #lon, lat start
+          [-6.0*meters2deg, 2.0*meters2deg],  #first cone
+          [1.0*meters2deg, 0.0] ])  #second cone
            
         self.num_waypoints = len(waypoints)
         
         [lon0,lat0] = waypoints[0]
-        deg2meters = 111111.11
+        
         lat_factor = math.cos(lat0*3.14159/180.0)
         self.wp_map = np.zeros(waypoints.shape)
         self.wp_map[:,0] = deg2meters*(waypoints[:,0]-lon0)

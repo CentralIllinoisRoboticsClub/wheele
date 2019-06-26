@@ -18,7 +18,7 @@ class PathController():
         self.vx = 0.0
         self.cum_err = 0
         
-        MAX_SPEED = 1.0
+        MAX_SPEED = 0.6
         MAX_OMEGA = 2.0
         self.diff_drive_controller = DiffDriveController(MAX_SPEED, MAX_OMEGA)
         
@@ -147,7 +147,7 @@ class PathController():
         # Local planner (no dynamic obstacle avoidance, hopefully to be done by global planner called frequently)
         if(not self.goal_reached or self.found_cone):
             self.v,self.w,self.goal_reached, alpha, pos_beta = self.diff_drive_controller.compute_vel(self.state,self.goal)
-            self.v = 1.0
+            self.v = 0.5
             if(self.goal_reached):
                 print "wp goal reached"
                 #print "v: ", v
@@ -163,7 +163,7 @@ class PathController():
             self.w = 0.
             
         if(self.reverse_flag):
-            self.v = -1.0
+            self.v = -0.5
             #self.w = 0.0
         
         #PI control for desired linear speed v
