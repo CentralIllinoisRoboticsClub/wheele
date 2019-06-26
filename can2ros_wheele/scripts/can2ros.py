@@ -270,7 +270,6 @@ class CANConverter():
         else:
             #print 'use gyro'
             dtheta_deg = dtheta_gyro_deg
-        dtheta_deg = dtheta_enc_deg
             
         #print 'dtheta gyro deg:', dtheta_gyro_deg
         #print 'dtheta enc deg:', dtheta_enc_deg
