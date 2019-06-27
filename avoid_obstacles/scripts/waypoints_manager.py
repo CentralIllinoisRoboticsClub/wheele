@@ -49,10 +49,13 @@ class WaypointManager():
         
         deg2meters = 111111.11
         meters2deg = 1.0/deg2meters
+
+        #longitude, latitude
+        #x,y +x=east, +y=north
         waypoints  = np.array([
-          [0, 0], #lonStart, latStart
-          [8.0*meters2deg, 12.0*meters2deg], # cone 1, lon = +x = east, lat = +y = north in map frame
-          [100.0*meters2deg, 100.0*meters2deg] ]) #cone 2
+          [0, 0],  #lon, lat start
+          [-6.0*meters2deg, 2.0*meters2deg],  #first cone
+          [1.0*meters2deg, 0.0] ])  #second cone
            
         self.num_waypoints = len(waypoints)
         
