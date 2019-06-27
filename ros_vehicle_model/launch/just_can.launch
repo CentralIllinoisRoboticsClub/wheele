@@ -1,0 +1,3 @@
+﻿<launch>
+  <node pkg="socketcan_bridge" type = "socketcan_bridge_node" name = "can_bridge" />
+</launch>

@@ -49,6 +49,7 @@ class WaypointManager():
         
         deg2meters = 111111.11
         meters2deg = 1.0/deg2meters
+
         #longitude, latitude
         #x,y +x=east, +y=north
         waypoints  = np.array([

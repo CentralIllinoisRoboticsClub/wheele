@@ -1,0 +1,19 @@
+﻿<launch>
+
+  <node pkg="socketcan_bridge" type = "socketcan_bridge_node" name = "can_bridge" />
+  <node pkg="can2ros_wheele" type = "can2ros.py" name = "can2odom" output="screen" />
+  <node pkg="ros_vehicle_model" type="ros2can" name="ros2can" output="screen" />
+
+  <node pkg="imu_can" type = "imu_stream" name = "imu_stream" />
+  <node name="nmea_serial_driver" pkg="nmea_navsat_driver" type="nmea_serial_driver" args="_port:=/dev/GPS_ultimate _baud:=9600 _frame_id:=gps"/>
+  <node pkg="gps_modular" type="gps_transform.py" name="gps_transform" output="screen"/>
+
+  <node pkg="ros_vehicle_model" type="wheele_local_planner.py" name="wheele_planner" >
+    <remap from="/move_base/GlobalPlanner/plan" to="path" />
+  </node>
+
+  <include file="$(find ros_vehicle_model)/launch/camera_test.launch" />
+
+  <include file="$(find cone_finder)/launch/cone_finder.launch" />
+
+</launch>
