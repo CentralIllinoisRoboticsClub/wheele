@@ -37,6 +37,7 @@ class CANConverter():
         self.batt_pub = rospy.Publisher('wheele_batt', Int16, queue_size = 1)
         self.auto_raw_pub = rospy.Publisher('auto_raw', Int16, queue_size = 1)
         self.raw_cmd_pub = rospy.Publisher('raw_cmd_py', Vector3, queue_size = 10)
+        self.bump_switch_pub = rospy.Publisher('bump_switch', Int16, queue_size = 1)
         self.raw_cmd = Vector3()
         self.cmd = SpeedCurve()
         self.cmd.speed = 0.0
@@ -194,6 +195,9 @@ class CANConverter():
             elif(msg.arbitration_id == 0x140): #BATTERY
                 self.raw_battery_voltage = self.convertCAN(msg.data,1,2)[0]
                 self.pub_battery_signal()
+            elif(msg.arbitration_id == 0x121): #Bumper switch
+                self.raw_bump_switch = self.convertCAN(msg.data,1,2)[0]
+                self.pub_bump_switch()
                 
             new_all_data_flag = new_cmd_data_flag and new_gyro_data_flag and new_enc_data_flag
             msg = self.bus.recv(0.0)
@@ -203,6 +207,11 @@ class CANConverter():
         raw_sig = Int16()
         raw_sig.data = self.raw_battery_voltage
         self.batt_pub.publish(raw_sig)
+    
+    def pub_bump_switch(self):
+        raw_sig = Int16()
+        raw_sig.data = 1 - self.raw_bump_switch
+        self.bump_switch_pub.publish(raw_sig)
     
     def update_cmd(self):
         
