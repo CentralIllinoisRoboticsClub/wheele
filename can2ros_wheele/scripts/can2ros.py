@@ -37,6 +37,7 @@ class CANConverter():
         self.batt_pub = rospy.Publisher('wheele_batt', Int16, queue_size = 1)
         self.auto_raw_pub = rospy.Publisher('auto_raw', Int16, queue_size = 1)
         self.raw_cmd_pub = rospy.Publisher('raw_cmd_py', Vector3, queue_size = 10)
+        self.bump_switch_pub = rospy.Publisher('bump_switch', Int16, queue_size = 1)
         self.raw_cmd = Vector3()
         self.cmd = SpeedCurve()
         self.cmd.speed = 0.0
@@ -97,14 +98,17 @@ class CANConverter():
         x = data.vector.x
         y = data.vector.y
         gps_theta = math.atan2(y,x)
-        (trans,quat) = self.tf_listener.lookupTransform('/map', '/base_link', rospy.Time(0))
-        xb = trans[0]
-        yb = trans[1]
-        if(self.botx**2 + self.boty**2 > 20.**2):
-            print "Updating odom heading based on gps"
-            bot_theta = math.atan2(yb,xb)
-            diff_theta = gps_theta - bot_theta
-            self.odom_heading_deg += diff_theta*180./3.14
+        try:
+            (trans,quat) = self.tf_listener.lookupTransform('/map', '/base_link', rospy.Time(0))
+            xb = trans[0]
+            yb = trans[1]
+            if(self.botx**2 + self.boty**2 > 20.**2):
+                print "Updating odom heading based on gps"
+                bot_theta = math.atan2(yb,xb)
+                diff_theta = gps_theta - bot_theta
+                self.odom_heading_deg += diff_theta*180./3.14
+        except:
+            aa=0
         
 
     def magIMU_callback(self, data):
@@ -191,6 +195,9 @@ class CANConverter():
             elif(msg.arbitration_id == 0x140): #BATTERY
                 self.raw_battery_voltage = self.convertCAN(msg.data,1,2)[0]
                 self.pub_battery_signal()
+            elif(msg.arbitration_id == 0x121): #Bumper switch
+                self.raw_bump_switch = self.convertCAN(msg.data,1,2)[0]
+                self.pub_bump_switch()
                 
             new_all_data_flag = new_cmd_data_flag and new_gyro_data_flag and new_enc_data_flag
             msg = self.bus.recv(0.0)
@@ -200,6 +207,11 @@ class CANConverter():
         raw_sig = Int16()
         raw_sig.data = self.raw_battery_voltage
         self.batt_pub.publish(raw_sig)
+    
+    def pub_bump_switch(self):
+        raw_sig = Int16()
+        raw_sig.data = 1 - self.raw_bump_switch
+        self.bump_switch_pub.publish(raw_sig)
     
     def update_cmd(self):
         
@@ -249,7 +261,7 @@ class CANConverter():
         delta_left_enc = self.get_delta_enc(self.left_enc, self.prev_left_enc)
         delta_right_enc = self.get_delta_enc(self.right_enc, self.prev_right_enc)
         
-        dtheta_enc_deg = float(delta_right_enc - delta_left_enc) / BOT_WIDTH * 180.0 / 3.1416
+        dtheta_enc_deg = float(delta_right_enc - delta_left_enc) / COUNTS_PER_METER / BOT_WIDTH * 180.0 / 3.1416
         
         dmeters = float(delta_left_enc + delta_right_enc)/2.0 / COUNTS_PER_METER #900 counts/meter
         #print 'dmeters: ', dmeters
@@ -259,7 +271,7 @@ class CANConverter():
             dtheta_gyro_deg = 0
         else:
             gz_dps = gyroz_raw_dps+g_bias_dps
-            dtheta_gyro_deg = gz_dps*dt*360.0/375.0 #HACK, WHY!!??
+            dtheta_gyro_deg = gz_dps*dt*360.0/368.2 #*360.0/375.0 # Scaling needed due to static pitch/roll IMU mount?
 
         if(abs(dtheta_gyro_deg) > MAX_DTHETA_GYRO_deg):
             print 'no gyro'

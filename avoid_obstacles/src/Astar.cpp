@@ -175,7 +175,10 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 	// TODO: Move goal until not an obstacle
 	//    Another option: move within a large radius of the goal (until c2,r2 is near cg,rg)
 	if(is_obs2(map,cg,rg))
-	    return false;
+	{
+	  ROS_WARN("Astar won't plan to obstacle goal");
+	  return false;
+	}
 
 	float x1,y1,g1,f2,g2,h2,DIST,x2,y2,cost;
 	float next_pos[2] = {0,0};
@@ -337,7 +340,10 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 	path.poses.push_back(wp);
 	*/
 	if(no_sol)
-	    return false;
+	{
+	  ROS_WARN("Astar no solution");
+	  return false;
+	}
 	return true;
 }
 

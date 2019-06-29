@@ -8,6 +8,8 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   std_msgs
   wheele_msgs
+  geometry_msgs
+  can_msgs
 )
 
 ################################################
@@ -131,6 +133,15 @@ add_dependencies(vehicle_model ros_vehicle_model_generate_messages_cpp ${catkin_
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(vehicle_model
+  ${catkin_LIBRARIES}
+)
+
+## Declare a C++ executable
+add_executable(ros2can
+ src/ROS2CAN.cpp
+)
+## Specify libraries to link a library or executable target against
+target_link_libraries(ros2can
   ${catkin_LIBRARIES}
 )
 
