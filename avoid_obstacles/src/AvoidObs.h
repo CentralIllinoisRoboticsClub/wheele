@@ -11,6 +11,7 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <tf/transform_listener.h>
 #include "PotentialFields.h"
+#include <std_msgs/Int16.h>
 //#include <std_msgs/String.h>
 
 
@@ -30,6 +31,7 @@ class AvoidObs
         void odomCallback(const nav_msgs::Odometry& odom);
         void goalCallback(const geometry_msgs::PoseStamped& data);
         void coneCallback(const geometry_msgs::PoseStamped& data);
+        void foundConeCallback(const std_msgs::Int16& data);
         
         void update_cell(float x, float y, int val);
         
@@ -42,7 +44,7 @@ class AvoidObs
         ros::Publisher costmap_pub_, pf_obs_pub_;
         ros::Publisher cmd_pub_;
         ros::Publisher obs_cone_pub_;
-        ros::Subscriber scan_sub_, odom_sub_, goal_sub_, wp_cone_sub_;
+        ros::Subscriber scan_sub_, odom_sub_, goal_sub_, wp_cone_sub_, found_cone_sub_;
         
         PotentialFields pf;
 

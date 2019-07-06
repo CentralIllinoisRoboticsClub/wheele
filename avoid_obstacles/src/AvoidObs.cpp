@@ -30,6 +30,7 @@ AvoidObs::AvoidObs()
     odom_sub_ = nh_.subscribe("odom", 10, &AvoidObs::odomCallback, this);
     goal_sub_ = nh_.subscribe("/move_base_simple/goal", 1, &AvoidObs::goalCallback, this);
     wp_cone_sub_ = nh_.subscribe("wp_cone_pose", 1, &AvoidObs::coneCallback, this);
+    found_cone_sub_ = nh_.subscribe("found_cone",1, &AvoidObs::foundConeCallback, this);
     nh_p  = ros::NodeHandle("~");
     nh_p.param("plan_rate_hz", plan_rate_, 1.0); //set in avoid_obs.launch
     nh_p.param("map_res_m", map_res_, 0.5);
@@ -95,9 +96,21 @@ void AvoidObs::coneCallback(const geometry_msgs::PoseStamped& data)
     camera_cone_poseStamped = data;
 }
 
+void AvoidObs::foundConeCallback(const std_msgs::Int16& msg)
+{
+  if(msg.data == 0) // need to reset the camera_cone_poseStamped so the just bumped cone now becomes an obstacle again
+  {
+    // TODO: add a bool flag when we bump a cone and update a waypoint to next cone, clear the flag in next coneCallback
+    //  do not check_for_cone_obstacle if this flag is set
+    camera_cone_poseStamped.pose.position.x = 0;
+    camera_cone_poseStamped.pose.position.y = 0;
+  }
+}
+
 bool AvoidObs::check_for_cone_obstacle()
 {
     double sec_since_cone = (ros::Time::now()-camera_cone_poseStamped.header.stamp).toSec();
+    unsigned min_cell_dist = 4*cone_search_n_cells_;
     if(sec_since_cone < 2.0)
     {
         int cost, max_nearby_cost = cone_obs_thresh_;
@@ -111,9 +124,11 @@ bool AvoidObs::check_for_cone_obstacle()
                 if(cost > cone_obs_thresh_ and cost <= 100)
                 {
                     costmap.data[(cy+dy) * n_width_ + (cx+dx)] = 0;
-                    if(cost > max_nearby_cost)
+                    unsigned cell_dist = abs(dx)+abs(dy);
+                    if(cell_dist <= min_cell_dist)
                     {
                         max_nearby_cost = cost;
+                        min_cell_dist = cell_dist;
                         obs_cone_poseStamped.header.stamp = ros::Time::now();
                         obs_cone_poseStamped.pose.position.x = map_pose.position.x + (cx+dx)*map_res_ + map_res_/2;
                         obs_cone_poseStamped.pose.position.y = map_pose.position.y + (cy+dy)*map_res_ + map_res_/2;

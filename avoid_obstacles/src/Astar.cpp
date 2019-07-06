@@ -176,8 +176,39 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 	//    Another option: move within a large radius of the goal (until c2,r2 is near cg,rg)
 	if(is_obs2(map,cg,rg))
 	{
-	  ROS_WARN("Astar won't plan to obstacle goal");
-	  return false;
+	  // step toward bot in 0.5 meter increments until no obstacle goal
+	  bool goal_is_obs = true;
+	  double dx = x_init - xg;
+	  double dy = y_init - yg;
+	  double range = sqrt(dx*dx+dy*dy);
+	  double step_x = dx/range*0.5;
+	  double step_y = dy/range*0.5;
+	  for(int nSteps=1;nSteps<=5;++nSteps)
+	  {
+	    get_map_indices(xg+step_x*nSteps, yg+step_y*nSteps, cg, rg);
+	    if(!is_obs2(map,cg,rg))
+	    {
+	      goal_is_obs = false;
+	      break;
+	    }
+	  }
+	  if(goal_is_obs) // step away from bot if still no clear cell found
+	  {
+	    for(int nSteps=1;nSteps<=5;++nSteps)
+	      {
+	        get_map_indices(xg-step_x*nSteps, yg-step_y*nSteps, cg, rg);
+	        if(!is_obs2(map,cg,rg))
+	        {
+	          goal_is_obs = false;
+	          break;
+	        }
+	      }
+	  }
+	  if(goal_is_obs)
+	  {
+      ROS_WARN("Astar won't plan to obstacle goal");
+      return false;
+	  }
 	}
 
 	float x1,y1,g1,f2,g2,h2,DIST,x2,y2,cost;
