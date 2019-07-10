@@ -35,7 +35,7 @@ class ConeFinder:
         rospy.loginfo("Initialized Cone Finder")        
 
     def config_callback(self, config, level):
-        rospy.loginfo("""Reconfigure Request: {hue_min}, {hue_max}, {double_param},\ 
+        rospy.loginfo("""Reconfigure Request: {hue_min}, {hue_max}, {sat_min}, {sat_max}, {val_min}, {val_max}, {double_param},\ 
             {str_param}, {bool_param}, {size}""".format(**config))
         self.config = config
         return config
@@ -108,10 +108,11 @@ class ConeFinder:
                     px_norm = (cx-img_w/2.0)/float(img_w)
                     py_norm = (cy-img_h/2.0)/float(img_h)
                     ph_norm = best_height/float(img_h)
-                    ideal_py_norm = -0.15
+                    ideal_py_norm = -0.05
                     
                     local_x = 0.5/ph_norm
-                    if(local_x < 6.0 and abs(py_norm-ideal_py_norm) < 0.05):
+                    rospy.loginfo("Cone local_x: %0.1f, py_norm: %0.2f",local_x, py_norm)
+                    if(local_x < 6.0 and abs(py_norm-ideal_py_norm) < 0.1):
                         local_y = -0.85 * local_x * px_norm
                         cone_pose = PoseStamped()
                         cone_pose.header.frame_id = "base_link"

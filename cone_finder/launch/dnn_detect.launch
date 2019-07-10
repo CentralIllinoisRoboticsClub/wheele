@@ -2,15 +2,17 @@
 <launch>
   <!-- namespace for camera input -->
   <arg name="camera" default="/camera"/>
-  <arg name="image" default="image"/>
+  <arg name="image" default="image_raw"/>
   <arg name="transport" default="compressed"/>
 
   <node pkg="dnn_detect" name="dnn_detect"
     type="dnn_detect" output="screen" respawn="false">
     <param name="image_transport" value="$(arg transport)"/>
     <param name="publish_images" value="true" />
-    <param name="data_dir" value="$(find dnn_detect)/model"/>
-    <param name="min_confidence" value="0.5" />
+    <param name="data_dir" value="$(find cone_finder)/model"/>
+    <param name="caffe_model_file" value="cone_or_none3_iter17800.caffemodel"/>
+    <param name="protonet_file" value="cone_or_none3_iter17800.prototxt"/>
+    <param name="min_confidence" value="0.37" />
     <remap from="/camera/compressed" 
         to="$(arg camera)/$(arg image)/$(arg transport)"/>
     <remap from="/camera_info" to="$(arg camera)/camera_info"/>

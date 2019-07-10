@@ -21,7 +21,7 @@ class PathController():
         MAX_SPEED = 0.6
         MAX_OMEGA = 2.0
         self.diff_drive_controller = DiffDriveController(MAX_SPEED, MAX_OMEGA)
-        self.diff_drive_controller.update_target_rho(0.25)
+        self.diff_drive_controller.update_target_rho(0.5)
         
         x_i = 0.
         y_i = 0.
@@ -113,10 +113,15 @@ class PathController():
                     ind1 = ind2
                     k += 1
                 
-                step_size_meters = 2.0    
-                wp_step = int(step_size_meters/path_dist * nPose)
-                if(wp_step >= nPose):
+                step_size_meters = 1.0
+                use_full_path = False
+                if(use_full_path):
                     wp_step = 1
+                else:
+                    wp_step = int(step_size_meters/path_dist * nPose)
+                    if(wp_step >= nPose):
+                        wp_step = 1
+                
                 init = wp_step
                 print "path dist: ", path_dist
                 print "wp step: ", wp_step
@@ -166,7 +171,7 @@ class PathController():
             print "wp goal: ", self.goal
             self.goal_reached = False
         else:
-            self.v = 0.
+            self.v = 0.5
             self.w = 0.
             
         if(self.reverse_flag):

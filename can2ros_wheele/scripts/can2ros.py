@@ -24,6 +24,7 @@ class CANConverter():
         self.heading_init_count = 0
         self.mag_heading_deg = 0
         self.odom_heading_deg = 0
+        self.use_compass_heading = False 
         self.map_bc = tf.TransformBroadcaster()
         
         self.tf_listener = tf.TransformListener()
@@ -118,7 +119,7 @@ class CANConverter():
             data.orientation.w)
         [roll,pitch,yaw] = tf.transformations.euler_from_quaternion(quaternion)
         self.mag_heading_deg = yaw*180./3.14159
-        if(self.heading_init_count < 10):
+        if(self.heading_init_count < 10 and self.use_compass_heading):
             self.heading_init_count += 1
             if(self.heading_init_count == 1):
                 self.odom_heading_deg = self.mag_heading_deg

@@ -125,7 +125,8 @@ bool AvoidObs::check_for_cone_obstacle()
                 {
                     costmap.data[(cy+dy) * n_width_ + (cx+dx)] = 0;
                     unsigned cell_dist = abs(dx)+abs(dy);
-                    if(cell_dist <= min_cell_dist)
+                    //if(cell_dist <= min_cell_dist)
+                    if(cost >= max_nearby_cost)
                     {
                         max_nearby_cost = cost;
                         min_cell_dist = cell_dist;
@@ -325,7 +326,7 @@ void AvoidObs::scanCallback(const sensor_msgs::LaserScan& scan) //use a point cl
 
 	    //clear map cells
 	    // only clear at range >= 0.5 meters
-        for (double r = 0.5; r < (range - map_res_); r += map_res_)
+        for (double r = 0.5; r < (range - map_res_*2.0); r += map_res_)
         {
             double angle_step = map_res_ / r;
             //clearing as we pass obstacles, try angle_increment/3 vs /2 (reduce clearing fov per laser)
