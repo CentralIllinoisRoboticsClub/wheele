@@ -312,7 +312,7 @@ void AvoidObs::scanCallback(const sensor_msgs::LaserScan& scan) //use a point cl
 {
     //ROS_INFO("NEW SCAN");
 	// Transform scan to map frame, clear and fill costmap
-    listener.waitForTransform("laser", "odom", ros::Time(0), ros::Duration(10.0));
+    listener.waitForTransform("laser", "odom", scan.header.stamp, ros::Duration(10.0)); // ros::Time(0) causes exceptions
 
 	geometry_msgs::PointStamped laser_point, odom_point;
 	laser_point.header.frame_id = "laser";
@@ -344,7 +344,7 @@ void AvoidObs::scanCallback(const sensor_msgs::LaserScan& scan) //use a point cl
                 catch (tf::TransformException& ex)
                 {
                     int xa;
-                    //ROS_ERROR("Received an exception trying to transform a point : %s", ex.what());
+                    ROS_ERROR("AvoidObs clear Received an exception trying to transform a point : %s", ex.what());
                 }
 
             }
@@ -366,7 +366,7 @@ void AvoidObs::scanCallback(const sensor_msgs::LaserScan& scan) //use a point cl
 				}
 				catch(tf::TransformException& ex){
 					int xa;
-					//ROS_ERROR("Received an exception trying to transform a point : %s", ex.what());
+					ROS_ERROR("AvoidObs fill Received an exception trying to transform a point : %s", ex.what());
 				}
 			}
 	    }
