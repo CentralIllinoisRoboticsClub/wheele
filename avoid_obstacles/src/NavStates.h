@@ -79,7 +79,7 @@ private:
   unsigned m_num_waypoints, m_index_wp;
   int m_state;
   unsigned m_index_path;
-  double m_speed, m_omega;
+  double m_speed, m_omega, m_filt_speed;
   unsigned m_scan_collision_db_count;
   unsigned m_cone_detect_db_count;
 
@@ -103,10 +103,12 @@ private:
     int cmd_control_ver;
     int scan_collision_db_limit;
     int cone_detect_db_limit;
+    double cmd_speed_filter_factor;
   }params;
 
   std::vector<double> x_coords;
   std::vector<double> y_coords;
+  bool waypoints_are_in_map_frame;
 
 };
 

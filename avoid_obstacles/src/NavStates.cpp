@@ -65,15 +65,24 @@ m_cone_detect_db_count(0)
   nh_p.param("cmd_control_ver", params.cmd_control_ver, 0);
   nh_p.param("scan_collision_db_limit", params.scan_collision_db_limit, 2);
   nh_p.param("cone_detect_db_limit", params.cone_detect_db_limit, 2);
+  nh_p.param("cmd_speed_filter_factor", params.cmd_speed_filter_factor, 0.5);
 
   nh_p.param("x_coords", x_coords, x_coords);
   nh_p.param("y_coords", y_coords, y_coords);
+  nh_p.param("waypoints_are_in_map_frame", waypoints_are_in_map_frame, true);
 
   //listener.setExtrapolationLimit(ros::Duration(0.1));
   listener.waitForTransform("laser", "odom", ros::Time(0), ros::Duration(10.0)); //TODO: ros::Time(0) or ::now() ??
   listener.waitForTransform("base_link", "odom", ros::Time(0), ros::Duration(10.0));
 
-  map_goal_pose.header.frame_id = "map";
+  if(waypoints_are_in_map_frame)
+  {
+    map_goal_pose.header.frame_id = "map";
+  }
+  else
+  {
+    map_goal_pose.header.frame_id = "odom";
+  }
   bot_pose.header.frame_id = "odom";
   map_goal_pose.pose.orientation.w = 1.0;
   bot_pose.pose.orientation.w = 1.0;
@@ -142,8 +151,15 @@ void NavStates::camConeCallback(const geometry_msgs::PoseStamped& cone_pose_in)
   if(m_state != STATE_RETREAT_FROM_CONE)
   {
     geometry_msgs::PoseStamped cone_in_map;
-    cone_in_map.header.frame_id = "map";
-    if(getPoseInFrame(cone_pose_in, "map", cone_in_map))
+    if(waypoints_are_in_map_frame)
+    {
+      cone_in_map.header.frame_id = "map";
+    }
+    else
+    {
+      cone_in_map.header.frame_id = "odom";
+    }
+    if(getPoseInFrame(cone_pose_in, cone_in_map.header.frame_id, cone_in_map))
     {
       if(distance_between_poses(cone_in_map, map_goal_pose) < params.valid_cone_to_wp_dist)
       {
@@ -494,8 +510,18 @@ void NavStates::update_states()
     m_speed = params.slow_speed*m_speed/fabs(m_speed);
   }
 
+  if(m_speed <= 0.0)
+  {
+    m_filt_speed = m_speed;
+  }
+  else
+  {
+    double alpha = params.cmd_speed_filter_factor;
+    m_filt_speed = m_filt_speed*alpha + m_speed*(1.0-alpha);
+  }
+
   geometry_msgs::Twist cmd;
-  cmd.linear.x = m_speed;
+  cmd.linear.x = m_filt_speed;
   cmd.angular.z = m_omega;
   cmd_pub_.publish(cmd);
 

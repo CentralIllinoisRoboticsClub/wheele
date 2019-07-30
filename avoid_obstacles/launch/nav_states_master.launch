@@ -20,23 +20,26 @@
     <rosparam>
       plan_rate_hz: 10.0
       use_PotFields: false
-      close_cone_to_bot_dist: 6.0
-      valid_cone_to_wp_dist: 1.0
+      close_cone_to_bot_dist: 8.0
+      valid_cone_to_wp_dist: 5.0
       near_path_dist: 1.0
-      desired_speed: 0.6
-      slow_speed: 0.3
-      max_omega: 1.0
+      desired_speed: 0.8
+      slow_speed: 0.5
+      max_omega: 2.0
       max_fwd_heading_error_deg: 90.0
       search_time: 1.0
-      search_omega: 0.1
-      reverse_time: 2.0
+      search_omega: 1.0
+      reverse_time: 1.0
       cmd_control_ver: 0
       scan_collision_db_limit: 3
       cone_detect_db_limit: 2
+      cmd_speed_filter_factor: 0.0
+
+      waypoints_are_in_map_frame: false
     </rosparam>
 
-    <rosparam param="x_coords">[4.0, 8.5]</rosparam>
-    <rosparam param="y_coords">[0.0, 5.5]</rosparam>
+    <rosparam param="x_coords">[8.0, 8.0,  0.0]</rosparam>
+    <rosparam param="y_coords">[0.0, 8.0, 13.0]</rosparam>
   </node>
 
   <node pkg="cv_camera" type="cv_camera_node" name="camera">
