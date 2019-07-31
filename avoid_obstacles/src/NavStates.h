@@ -46,6 +46,7 @@ private:
   void state_init();
   double get_time_in_state();
 
+  // A function for each state in the state machine
   void track_path();
   void retreat();
   void search_in_place();
@@ -59,6 +60,7 @@ private:
   ros::Publisher cmd_pub_, wp_goal_pub_, wp_cone_pub_;
   ros::Publisher obs_cone_pub_;
   ros::Publisher nav_state_pub_;
+  ros::Publisher known_obs_pub_;
 
   ros::Subscriber scan_sub_, odom_sub_, clicked_goal_sub_, path_sub_;
   ros::Subscriber cam_cone_pose_sub_, laser_cone_pose_sub_, bump_sub_;
@@ -102,6 +104,7 @@ private:
     double reverse_time;
     int cmd_control_ver;
     int scan_collision_db_limit;
+    double scan_collision_range;
     int cone_detect_db_limit;
     double cmd_speed_filter_factor;
   }params;

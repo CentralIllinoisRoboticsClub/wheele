@@ -15,6 +15,8 @@
     <param name="use_PotFields" value="false" />
     <param name="cone_search_radius" value="1.0" />
     <param name="cone_obs_thresh" value="0" />
+    <param name="max_num_known_obstacles" value="10" />
+    <param name="known_obstacle_time_limit" value="30.0" />
   </node>
   <node pkg="avoid_obstacles" type="astar" name="astar" output="screen">
     <param name="obs_thresh" value="30" />

@@ -41,6 +41,7 @@ m_cone_detect_db_count(0)
   wp_goal_pub_ = nh_.advertise<geometry_msgs::PoseStamped>("wp_goal",1);
   wp_cone_pub_ = nh_.advertise<geometry_msgs::PoseStamped>("wp_cone_pose",1); //temp, Need to send this to avoid_obs to clear the costmap at cone
   nav_state_pub_ = nh_.advertise<std_msgs::Int16>("nav_state",1);
+  known_obs_pub_ = nh_.advertise<geometry_msgs::PoseStamped>("known_obstacle",1);
 
   //Topic you want to subscribe
   scan_sub_ = nh_.subscribe("scan", 50, &NavStates::scanCallback, this); //receive laser scan
@@ -64,6 +65,7 @@ m_cone_detect_db_count(0)
   nh_p.param("reverse_time", params.reverse_time, 2.0);
   nh_p.param("cmd_control_ver", params.cmd_control_ver, 0);
   nh_p.param("scan_collision_db_limit", params.scan_collision_db_limit, 2);
+  nh_p.param("scan_collision_range", params.scan_collision_range, 0.5);
   nh_p.param("cone_detect_db_limit", params.cone_detect_db_limit, 2);
   nh_p.param("cmd_speed_filter_factor", params.cmd_speed_filter_factor, 0.5);
 
@@ -231,6 +233,7 @@ double NavStates::get_plan_rate()
 
 void NavStates::odomCallback(const nav_msgs::Odometry& odom)
 {
+  bot_pose.header.stamp = odom.header.stamp;
   bot_pose.pose.position = odom.pose.pose.position;
   bot_pose.pose.orientation = odom.pose.pose.orientation;
   bot_yaw = get_yaw(bot_pose.pose);
@@ -258,7 +261,7 @@ void NavStates::scanCallback(const sensor_msgs::LaserScan& scan) //use a point c
   {
     float range = scan.ranges[i];
     float angle  = scan.angle_min +(float(i) * scan.angle_increment);
-    if(range < 0.5)
+    if(range < params.scan_collision_range)
     {
       ++close_count;
     }
@@ -293,33 +296,35 @@ void NavStates::commandTo(const geometry_msgs::PoseStamped& goal)
 {
   m_speed = params.desired_speed;
   double des_yaw = getTargetHeading(goal);
+  double heading_error = des_yaw - bot_yaw;
+  if(heading_error >= M_PI)
+  {
+    heading_error -= 2*M_PI;
+  }
+  else if(heading_error < -M_PI)
+  {
+    heading_error += 2*M_PI;
+  }
 
   if(params.cmd_control_ver == 0)
   {
     // ********** FROM DiffDriveController ********
     double ka= 2.0;
     double kb= 0.001;
-    double theta = bot_yaw;
-    double pos_beta = des_yaw;
-    double alpha = pos_beta - theta;
-    if(alpha >= M_PI)
-      alpha -= 2*M_PI;
-    else if(alpha < -M_PI)
-      alpha += 2*M_PI;
-
-    m_omega = ka*alpha + kb*pos_beta;
+    m_omega = ka*heading_error + kb*des_yaw;
     // **********************************************
   }
   else
   {
-    m_omega = 0.5*(des_yaw - bot_yaw);
+    m_omega = 0.5*(heading_error); // TODO: parameter
     if(fabs(m_omega) > 1.0)
     {
       m_omega = 1.0*m_omega/fabs(m_omega);
       m_speed = 0.4;
     }
   }
-  if(fabs(des_yaw - bot_yaw) > params.max_fwd_heading_error_deg*M_PI/180)
+
+  if(fabs(heading_error) > params.max_fwd_heading_error_deg*M_PI/180)
   {
     m_speed = -m_speed;
   }
@@ -442,6 +447,8 @@ void NavStates::touch_target()
     m_speed = 0.0;
     m_omega = 0.0;
     m_state = STATE_RETREAT_FROM_CONE;
+    // Known obstacle pose should be published in the odom frame for AvoidObs costmap
+    known_obs_pub_.publish(bot_pose);
   }
 }
 void NavStates::retreat_from_cone()
@@ -510,7 +517,7 @@ void NavStates::update_states()
     m_speed = params.slow_speed*m_speed/fabs(m_speed);
   }
 
-  if(m_speed <= 0.0)
+  if(m_speed <= 0.0 && m_bump_switch)
   {
     m_filt_speed = m_speed;
   }

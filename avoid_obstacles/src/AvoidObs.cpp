@@ -31,6 +31,7 @@ AvoidObs::AvoidObs()
     goal_sub_ = nh_.subscribe("/move_base_simple/goal", 1, &AvoidObs::goalCallback, this);
     wp_cone_sub_ = nh_.subscribe("wp_cone_pose", 1, &AvoidObs::coneCallback, this);
     found_cone_sub_ = nh_.subscribe("found_cone",1, &AvoidObs::foundConeCallback, this);
+    known_obstacle_sub_ = nh_.subscribe("known_obstacle",1,&AvoidObs::knownObstacleCallback, this);
     nh_p  = ros::NodeHandle("~");
     nh_p.param("plan_rate_hz", plan_rate_, 1.0); //set in avoid_obs.launch
     nh_p.param("map_res_m", map_res_, 0.5);
@@ -48,6 +49,8 @@ AvoidObs::AvoidObs()
     nh_p.param("reinflate_cost_thresh", reinflate_cost_thresh_, 30);
     nh_p.param("use_PotFields", use_PotFields_,false);
     nh_p.param("cone_obs_thresh", cone_obs_thresh_, 20);
+    nh_p.param("max_num_known_obstacles", max_num_known_obstacles_, 20);
+    nh_p.param("known_obstacle_time_limit", known_obstacle_time_limit_, 30.0);
 
     ROS_INFO("map_size (n cells): %d", n_width_);
     
@@ -90,6 +93,17 @@ AvoidObs::AvoidObs()
 }
 
 AvoidObs::~AvoidObs(){}
+
+void AvoidObs::knownObstacleCallback(const geometry_msgs::PoseStamped& obs_pose)
+{
+  // TODO: transform known obstacle to odom frame if not already
+  knownObstacleDeq.push_back(obs_pose);
+  //TODO: Consider using boost circular buffer
+  if(knownObstacleDeq.size() > max_num_known_obstacles_)
+  {
+    knownObstacleDeq.pop_front();
+  }
+}
 
 void AvoidObs::coneCallback(const geometry_msgs::PoseStamped& data)
 {
@@ -414,8 +428,31 @@ void AvoidObs::scanCallback(const sensor_msgs::LaserScan& scan) //use a point cl
 	//update_cell(odom_point.point.x, odom_point.point.y, 100.0);
 
     check_for_cone_obstacle(); //clears obstacles near cone pose estimated from camera
+
+    // ensure costmap has known obstacles
+    check_known_obstacles();
+
     costmap.header.stamp = scan.header.stamp;
     costmap_pub_.publish(costmap);
+}
+
+void AvoidObs::check_known_obstacles()
+{
+  if(knownObstacleDeq.size() > 0)
+  {
+    // check if oldest obstacle has expired
+    if( (ros::Time::now() - knownObstacleDeq[0].header.stamp).toSec() > known_obstacle_time_limit_)
+    {
+      knownObstacleDeq.pop_front();
+    }
+
+    // insert known obstacles into costmap
+    for(unsigned k=0; k<knownObstacleDeq.size(); ++k)
+    {
+      const geometry_msgs::PoseStamped& obs_pose = knownObstacleDeq.at(k);
+      update_cell(obs_pose.pose.position.x, obs_pose.pose.position.y, 100);
+    }
+  }
 }
 
 int main(int argc, char **argv)

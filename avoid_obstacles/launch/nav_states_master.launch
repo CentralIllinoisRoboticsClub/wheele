@@ -32,14 +32,15 @@
       reverse_time: 1.0
       cmd_control_ver: 0
       scan_collision_db_limit: 3
+      scan_collision_range: 0.5
       cone_detect_db_limit: 2
-      cmd_speed_filter_factor: 0.0
+      cmd_speed_filter_factor: 0.5
 
       waypoints_are_in_map_frame: false
     </rosparam>
 
-    <rosparam param="x_coords">[8.0, 8.0,  0.0]</rosparam>
-    <rosparam param="y_coords">[0.0, 8.0, 13.0]</rosparam>
+    <rosparam param="x_coords">[9.0, 9.0,  0.0]</rosparam>
+    <rosparam param="y_coords">[0.0, 9.0, 13.0]</rosparam>
   </node>
 
   <node pkg="cv_camera" type="cv_camera_node" name="camera">
