@@ -21,26 +21,26 @@
       plan_rate_hz: 10.0
       use_PotFields: false
       close_cone_to_bot_dist: 8.0
-      valid_cone_to_wp_dist: 5.0
+      valid_cone_to_wp_dist: 8.0
       near_path_dist: 1.0
       desired_speed: 0.8
-      slow_speed: 0.5
+      slow_speed: 0.4
       max_omega: 2.0
       max_fwd_heading_error_deg: 90.0
-      search_time: 1.0
-      search_omega: 1.0
+      search_time: 2.0
+      search_omega: 0.8
       reverse_time: 1.0
       cmd_control_ver: 0
       scan_collision_db_limit: 3
       scan_collision_range: 0.5
-      cone_detect_db_limit: 2
+      cone_detect_db_limit: 1
       cmd_speed_filter_factor: 0.5
 
-      waypoints_are_in_map_frame: false
+      waypoints_are_in_map_frame: true
     </rosparam>
 
-    <rosparam param="x_coords">[9.0, 9.0,  0.0]</rosparam>
-    <rosparam param="y_coords">[0.0, 9.0, 13.0]</rosparam>
+    <rosparam param="x_coords">[11.0, -16.0,  20.0]</rosparam>
+    <rosparam param="y_coords">[10.0, -40.0, -50.0]</rosparam>
   </node>
 
   <node pkg="cv_camera" type="cv_camera_node" name="camera">
@@ -59,7 +59,7 @@
 
   <!-- <node pkg="avoid_obstacles" type="waypoints_manager.py" name="waypoints_manager" output="screen"/> -->
 
-  <node pkg="cone_finder" type="cone_finder.py" name="cone_finder">
+  <node pkg="cone_finder" type="cone_finder.py" name="cone_finder" output="screen">
     <remap from="/camera/image_raw" to="/camera/image_raw"/>
     <param name="hue_max" value="12" type="int" />
   </node>

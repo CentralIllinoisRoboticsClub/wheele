@@ -21,7 +21,7 @@
   <node pkg="avoid_obstacles" type="astar" name="astar" output="screen">
     <param name="obs_thresh" value="30" />
     <param name="obs_weight" value="0.1" />
-    <param name="max_plan_time_sec" value="1.0" />
+    <param name="max_plan_time_sec" value="3.0" />
     <!-- <remap from="wp_goal" to="move_base_simple/goal" /> -->
   </node>
 </launch>

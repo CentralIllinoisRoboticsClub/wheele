@@ -32,10 +32,13 @@ private:
   void camConeCallback(const geometry_msgs::PoseStamped& cone_pose_in);
   void bumpCallback(const std_msgs::Int16& data);
   void pathCallback(const nav_msgs::Path& path_in);
+  void mapToOdomUpdateCallback(const std_msgs::Int16& data);
 
   void update_plan();
   bool check_for_cone_obstacle();
   void update_waypoint();
+  void refresh_odom_goal();
+
   double distance_between_poses(const geometry_msgs::PoseStamped& pose1, const geometry_msgs::PoseStamped& pose2);
   bool getPoseInFrame(const geometry_msgs::PoseStamped& pose_in, std::string target_frame,
       geometry_msgs::PoseStamped& pose_out);
@@ -64,9 +67,10 @@ private:
 
   ros::Subscriber scan_sub_, odom_sub_, clicked_goal_sub_, path_sub_;
   ros::Subscriber cam_cone_pose_sub_, laser_cone_pose_sub_, bump_sub_;
+  ros::Subscriber map_to_odom_update_sub_;
 
   geometry_msgs::PoseStamped bot_pose, map_goal_pose, odom_goal_pose;
-  geometry_msgs::PoseStamped camera_cone_pose, obs_cone_pose;
+  geometry_msgs::PoseStamped camera_cone_pose, obs_cone_pose, camera_cone_pose_in_map;
   float bot_yaw;
 
   tf::TransformListener listener;
@@ -76,7 +80,7 @@ private:
   std::vector<geometry_msgs::Point> m_waypoints;
 
   bool m_collision, m_cone_detected, m_odom_received, m_path_received;
-  bool m_init_wp_published;
+  bool m_init_wp_published, m_odom_goal_refresh_needed;
   int m_bump_switch;
   unsigned m_num_waypoints, m_index_wp;
   int m_state;

@@ -25,6 +25,7 @@ m_cone_detected(false),
 m_odom_received(false),
 m_path_received(false),
 m_init_wp_published(false),
+m_odom_goal_refresh_needed(false),
 m_bump_switch(0),
 m_num_waypoints(0),
 m_index_wp(0),
@@ -50,6 +51,7 @@ m_cone_detect_db_count(0)
   cam_cone_pose_sub_ = nh_.subscribe("cam_cone_pose", 1, &NavStates::camConeCallback, this);
   bump_sub_ = nh_.subscribe("bump_switch",1, &NavStates::bumpCallback, this);
   path_sub_ = nh_.subscribe("path",5, &NavStates::pathCallback, this);
+  map_to_odom_update_sub_ = nh_.subscribe("map_to_odom_update", 1, &NavStates::mapToOdomUpdateCallback, this);
   nh_p  = ros::NodeHandle("~");
   nh_p.param("plan_rate_hz", params.plan_rate, 10.0);
   nh_p.param("use_PotFields", params.use_PotFields, false);
@@ -87,6 +89,8 @@ m_cone_detect_db_count(0)
   }
   bot_pose.header.frame_id = "odom";
   map_goal_pose.pose.orientation.w = 1.0;
+  camera_cone_pose_in_map = map_goal_pose;
+
   bot_pose.pose.orientation.w = 1.0;
   odom_goal_pose = bot_pose;
   bot_yaw = 0.0;
@@ -119,6 +123,7 @@ void NavStates::update_waypoint()
   map_goal_pose.header.stamp = ros::Time::now();
   map_goal_pose.pose.position.x = m_waypoints[m_index_wp].x;
   map_goal_pose.pose.position.y = m_waypoints[m_index_wp].y;
+  camera_cone_pose_in_map = map_goal_pose;
   ROS_INFO("Update Waypoint");
   ROS_INFO("map x,y = %0.1f, %0.1f",map_goal_pose.pose.position.x, map_goal_pose.pose.position.y);
   geometry_msgs::PoseStamped odom_pose;
@@ -138,6 +143,25 @@ void NavStates::update_waypoint()
     ROS_INFO("wp_goal published");
     m_init_wp_published = true;
     m_cone_detect_db_count = 0;
+  }
+}
+
+// Because can2ros now updates map_to_odom, update the goal in the new transformed odom frame
+//  This is triggered by the mapToOdomUpdateCallback to topic "map_to_odom_update"
+//  This will continue to be called until the getPoseinFrame is successful after a triggered refresh
+void NavStates::refresh_odom_goal()
+{
+  //camera_cone_pose_in_map.header.stamp = ros::Time::now(); // Moved to the mapToOdomUpdateCallback
+  geometry_msgs::PoseStamped odom_pose;
+  odom_pose.header.frame_id = "odom";
+  if(getPoseInFrame(camera_cone_pose_in_map, "odom", odom_pose))
+  {
+    odom_goal_pose = odom_pose;
+
+    wp_goal_pub_.publish(odom_goal_pose);
+    camera_cone_pose = odom_goal_pose;
+    wp_cone_pub_.publish(camera_cone_pose); // publish this once to avoid obs so it will clear the costmap at the initial goal, until it finds an updated goal from the camera
+    m_odom_goal_refresh_needed = false;
   }
 }
 
@@ -173,6 +197,7 @@ void NavStates::camConeCallback(const geometry_msgs::PoseStamped& cone_pose_in)
           if( (distance_between_poses(cone_in_odom, bot_pose) < params.close_cone_to_bot_dist)
               && (m_cone_detect_db_count >= params.cone_detect_db_limit) )
           {
+            camera_cone_pose_in_map = cone_in_map;
             camera_cone_pose = cone_in_odom;
             wp_cone_pub_.publish(camera_cone_pose);
             m_cone_detect_db_count = params.cone_detect_db_limit;
@@ -226,6 +251,12 @@ void NavStates::bumpCallback(const std_msgs::Int16& msg)
   m_bump_switch = msg.data;
 }
 
+void NavStates::mapToOdomUpdateCallback(const std_msgs::Int16& msg)
+{
+  m_odom_goal_refresh_needed = true;
+  camera_cone_pose_in_map.header.stamp = ros::Time::now();
+}
+
 double NavStates::get_plan_rate()
 {
   return params.plan_rate;
@@ -257,6 +288,7 @@ void NavStates::scanCallback(const sensor_msgs::LaserScan& scan) //use a point c
   m_collision = false;
   unsigned close_count = 0;
 
+  // Declare "collision" if multiple lasers see an obstacle within close range
   for (int i = 0; i < scan.ranges.size();i++)
   {
     float range = scan.ranges[i];
@@ -266,7 +298,7 @@ void NavStates::scanCallback(const sensor_msgs::LaserScan& scan) //use a point c
       ++close_count;
     }
   }
-  if(close_count > 2)
+  if(close_count > 2) // TODO: Parameter, how many lasers in one scan need to see an obstacle
   {
     ++m_scan_collision_db_count;
     if(m_scan_collision_db_count > params.scan_collision_db_limit)
@@ -355,7 +387,7 @@ void NavStates::track_path()
     return;
   }
 
-  if(m_collision)
+  if(m_bump_switch || m_collision)
   {
     m_state = STATE_RETREAT;
     m_speed = 0.0;
@@ -438,7 +470,7 @@ void NavStates::touch_target()
   commandTo(camera_cone_pose);
   if(m_bump_switch > 0 || m_collision)
   {
-    // this causes update_waypoint() to be called again until is is successful
+    // this causes update_waypoint() to be called again until it is successful
     m_init_wp_published = false;
     m_cone_detected = false;
     m_cone_detect_db_count = 0;
@@ -534,6 +566,11 @@ void NavStates::update_states()
 
   m_nav_state_msg.data = m_state;
   nav_state_pub_.publish(m_nav_state_msg);
+
+  if(m_odom_goal_refresh_needed)
+  {
+    refresh_odom_goal();
+  }
 }
 
 int main(int argc, char **argv)
