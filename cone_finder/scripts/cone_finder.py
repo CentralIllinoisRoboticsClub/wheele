@@ -19,6 +19,8 @@ noise_se_h = 7;
 fill_se_w = 3;
 fill_se_h = 10;
 
+only_publish_detections = False
+
 class ConeFinder:
     def __init__(self):        
         self.node_name = "Cone Finder"
@@ -44,6 +46,40 @@ class ConeFinder:
         thread = threading.Thread(target=self.processImage,args=(image_msg,))
         thread.setDaemon(True)
         thread.start()
+        
+    def detect_shape(self, c):
+        # https://www.pyimagesearch.com/2016/02/08/opencv-shape-detection/
+        # initialize the shape name and approximate the contour
+        shape = "unidentified"
+        peri = cv2.arcLength(c, True)
+        approx = cv2.approxPolyDP(c, 0.1 * peri, True) #0.04*peri
+        
+        # if the shape is a triangle, it will have 3 vertices
+        if len(approx) == 3:
+            shape = "triangle"
+
+        # if the shape has 4 vertices, it is either a square or
+        # a rectangle
+        elif len(approx) == 4:
+            # compute the bounding box of the contour and use the
+            # bounding box to compute the aspect ratio
+            (x, y, w, h) = cv2.boundingRect(approx)
+            ar = w / float(h)
+
+            # a square will have an aspect ratio that is approximately
+            # equal to one, otherwise, the shape is a rectangle
+            shape = "square" if ar >= 0.95 and ar <= 1.05 else "rectangle"
+
+        # if the shape is a pentagon, it will have 5 vertices
+        elif len(approx) == 5:
+            shape = "pentagon"
+
+        # otherwise, we assume the shape is a circle
+        else:
+            shape = "circle"
+
+        # return the name of the shape
+        return shape
 
     def processImage(self, image_msg):
         #rospy.loginfo("processImage")
@@ -57,8 +93,12 @@ class ConeFinder:
                 
             CONE_MIN = np.array([self.config["hue_min"], self.config["sat_min"], self.config["val_min"]],np.uint8) #75, 86
             CONE_MAX = np.array([self.config["hue_max"], self.config["sat_max"],self.config["val_max"]],np.uint8)
+            CONE_MIN2 = np.array([180-self.config["hue_max"], self.config["sat_min"], self.config["val_min"]],np.uint8)
+            CONE_MAX2 = np.array([180-self.config["hue_min"], self.config["sat_max"],self.config["val_max"]],np.uint8)
             hsv = cv2.cvtColor(image_cv,cv2.COLOR_BGR2HSV)
-            hsv_filt = cv2.inRange(hsv, CONE_MIN, CONE_MAX)
+            hsv_filt1 = cv2.inRange(hsv, CONE_MIN, CONE_MAX)
+            hsv_filt2 = cv2.inRange(hsv, CONE_MIN2, CONE_MAX2)
+            hsv_filt = cv2.bitwise_or(hsv_filt1, hsv_filt2)
             
             #Open binary image
             rect_se = cv2.getStructuringElement(cv2.MORPH_RECT,(rect_w,rect_h))
@@ -99,11 +139,11 @@ class ConeFinder:
                     M = cv2.moments(best_cnt)
                     cx,cy = int(M['m10']/M['m00']), int(M['m01']/M['m00'])
                     cv2.circle(image_cv,(cx,cy),5,255,-1)
+                    (rx,ry,rw,rh) = cv2.boundingRect(best_cnt)
+                    cx2,cy2 = (rx+rw/2,ry+rh/2)
+                    cv2.circle(image_cv,(cx2,cy2),5,100,-1)
+                    cv2.rectangle(image_cv, (rx,ry), (rx+rw,ry+rh), (0, 255, 0), 3)
                     #rospy.loginfo("Cone Found at pixel x,y: %d, %d",int(cx),int(cy))
-                    try:
-                        self.pub_image.publish(self.bridge.cv2_to_imgmsg(image_cv,"bgr8"))
-                    except CvBridgeError as e:
-                        print(e)
                     
                     px_norm = (cx-img_w/2.0)/float(img_w)
                     py_norm = (cy-img_h/2.0)/float(img_h)
@@ -112,7 +152,9 @@ class ConeFinder:
                     
                     local_x = 0.5/ph_norm
                     rospy.loginfo("Cone local_x: %0.1f, py_norm: %0.2f",local_x, py_norm)
-                    if(local_x < 6.0 and abs(py_norm-ideal_py_norm) < 0.1):
+                    blob_shape = self.detect_shape(best_cnt)
+                    print(blob_shape)
+                    if(local_x < 10.0 and (abs(py_norm-ideal_py_norm) < 0.2 and blob_shape=="triangle") ): #TODO: parameter
                         local_y = -0.85 * local_x * px_norm
                         cone_pose = PoseStamped()
                         cone_pose.header.frame_id = "base_link"
@@ -121,6 +163,12 @@ class ConeFinder:
                         cone_pose.pose.position.x = local_x
                         cone_pose.pose.position.y = local_y
                         self.pub_cone_pose.publish(cone_pose)
+            
+            
+            try:
+                self.pub_image.publish(self.bridge.cv2_to_imgmsg(image_cv,"bgr8"))
+            except CvBridgeError as e:
+                print(e)
         
         #rospy.loginfo("Cone Search Done")
         self.thread_lock.release()
