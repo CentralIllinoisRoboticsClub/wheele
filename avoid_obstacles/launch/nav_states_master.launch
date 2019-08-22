@@ -37,6 +37,7 @@
       cone_detect_db_limit: 1
       cmd_speed_filter_factor: 0.5
       report_bumped_obstacles: true
+      max_camera_search_time: 7.0
 
       waypoints_are_in_map_frame: true
     </rosparam>

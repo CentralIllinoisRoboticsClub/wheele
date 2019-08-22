@@ -30,6 +30,7 @@ private:
   void odomCallback(const nav_msgs::Odometry& odom);
   void clickedGoalCallback(const geometry_msgs::PoseStamped& data);
   void camConeCallback(const geometry_msgs::PoseStamped& cone_pose_in);
+  void obsConeCallback(const geometry_msgs::PoseStamped& obs_cone_pose_in);
   void bumpCallback(const std_msgs::Int16& data);
   void pathCallback(const nav_msgs::Path& path_in);
   void mapToOdomUpdateCallback(const std_msgs::Int16& data);
@@ -57,17 +58,18 @@ private:
   void touch_target();
   void retreat_from_cone();
   void update_target();
+  void update_target(geometry_msgs::PoseStamped target_pose);
 
   ros::NodeHandle nh_;
   ros::NodeHandle nh_p;
   ros::Publisher cmd_pub_, wp_goal_pub_, wp_cone_pub_;
-  ros::Publisher obs_cone_pub_;
   ros::Publisher nav_state_pub_;
   ros::Publisher known_obs_pub_;
   ros::Publisher hill_wp_pub_;
 
   ros::Subscriber scan_sub_, odom_sub_, clicked_goal_sub_, path_sub_;
   ros::Subscriber cam_cone_pose_sub_, laser_cone_pose_sub_, bump_sub_;
+  ros::Subscriber obs_cone_sub_;
   ros::Subscriber map_to_odom_update_sub_;
 
   geometry_msgs::PoseStamped bot_pose, map_goal_pose, odom_goal_pose;
@@ -82,8 +84,9 @@ private:
   int m_current_waypoint_type;
   int m_current_hill_type;
 
-  bool m_collision, m_cone_detected, m_odom_received, m_path_received;
+  bool m_collision, m_cone_detected, m_odom_received, m_path_received, m_obs_cone_received;
   bool m_init_wp_published, m_odom_goal_refresh_needed;
+  bool m_first_search;
   int m_bump_switch;
   unsigned m_num_waypoints, m_index_wp;
   int m_state;
@@ -94,6 +97,7 @@ private:
 
   ros::Time state_start_time;
   ros::Time m_bump_time;
+  ros::Time m_init_search_time;
 
   //parameters
   struct Parameters
@@ -117,6 +121,7 @@ private:
     int cone_detect_db_limit;
     double cmd_speed_filter_factor;
     bool report_bumped_obstacles;
+    double max_camera_search_time;
     //int min_new_path_size;
   }params;
 

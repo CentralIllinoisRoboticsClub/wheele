@@ -28,8 +28,10 @@ m_collision(false),
 m_cone_detected(false),
 m_odom_received(false),
 m_path_received(false),
+m_obs_cone_received(false),
 m_init_wp_published(false),
 m_odom_goal_refresh_needed(false),
+m_first_search(true),
 m_bump_switch(0),
 m_num_waypoints(0),
 m_index_wp(0),
@@ -54,6 +56,7 @@ m_cone_detect_db_count(0)
   odom_sub_ = nh_.subscribe("odom", 10, &NavStates::odomCallback, this);
   clicked_goal_sub_ = nh_.subscribe("/move_base_simple/goal", 1, &NavStates::clickedGoalCallback, this);
   cam_cone_pose_sub_ = nh_.subscribe("cam_cone_pose", 1, &NavStates::camConeCallback, this);
+  obs_cone_sub_ = nh_.subscribe("obs_cone_pose", 1, &NavStates::obsConeCallback, this);
   bump_sub_ = nh_.subscribe("bump_switch",1, &NavStates::bumpCallback, this);
   path_sub_ = nh_.subscribe("path",5, &NavStates::pathCallback, this);
   map_to_odom_update_sub_ = nh_.subscribe("map_to_odom_update", 1, &NavStates::mapToOdomUpdateCallback, this);
@@ -77,6 +80,7 @@ m_cone_detect_db_count(0)
   nh_p.param("cone_detect_db_limit", params.cone_detect_db_limit, 2);
   nh_p.param("cmd_speed_filter_factor", params.cmd_speed_filter_factor, 0.5);
   nh_p.param("report_bumped_obstacles", params.report_bumped_obstacles, false);
+  nh_p.param("max_camera_search_time", params.max_camera_search_time, 7.0);
 
   nh_p.param("x_coords", x_coords, x_coords);
   nh_p.param("y_coords", y_coords, y_coords);
@@ -129,6 +133,7 @@ NavStates::~NavStates(){}
 
 void NavStates::update_waypoint()
 {
+  m_first_search = true; // used to reset the m_init_search_time in search_in_place state
   map_goal_pose.header.stamp = ros::Time::now();
   m_current_waypoint_type = waypoint_type_list[m_index_wp];
   m_current_hill_type = hill_wp_list[m_index_wp];
@@ -157,6 +162,7 @@ void NavStates::update_waypoint()
     ROS_INFO("wp_goal published");
     m_init_wp_published = true;
     m_path_received = false; //avoid updating waypoint again if Astar has not yet responded to the just updated waypoint
+    m_obs_cone_received = false;
     m_cone_detect_db_count = 0;
   }
 }
@@ -239,6 +245,12 @@ void NavStates::camConeCallback(const geometry_msgs::PoseStamped& cone_pose_in)
       }
     }
   }
+}
+
+void NavStates::obsConeCallback(const geometry_msgs::PoseStamped& obs_cone_pose_in)
+{
+  obs_cone_pose = obs_cone_pose_in;
+  m_obs_cone_received = true;
 }
 
 double NavStates::distance_between_poses(const geometry_msgs::PoseStamped& pose1, const geometry_msgs::PoseStamped& pose2)
@@ -481,6 +493,12 @@ void NavStates::retreat()
 }
 void NavStates::search_in_place()
 {
+  if(m_first_search)
+  {
+    m_init_search_time = ros::Time::now();
+    m_first_search = false;
+  }
+
   m_speed = params.slow_speed;
   m_omega = params.search_omega;
   if(m_cone_detected)
@@ -492,6 +510,21 @@ void NavStates::search_in_place()
   if(get_time_in_state() > params.search_time || m_collision)
   {
     m_state = STATE_TRACK_PATH;
+    if( (ros::Time::now()-m_init_search_time).toSec() > params.max_camera_search_time)
+    {
+      if(m_obs_cone_received)
+      {
+        camera_cone_pose = obs_cone_pose;
+      }
+      else
+      {
+        camera_cone_pose = odom_goal_pose;
+      }
+      m_cone_detected = true; //could also not set this to still require camera cone detection
+      update_target();
+      //OR just update the goal for Astar to be the obs_cone_pose
+      // update_target(obs_cone_pose); //still requires the camera to find the cone, but the path will be updated to go to obs_cone_pose
+    }
   }
 }
 void NavStates::turn_to_target()
@@ -554,6 +587,11 @@ void NavStates::retreat_from_cone()
 void NavStates::update_target()
 {
   wp_goal_pub_.publish(camera_cone_pose);
+}
+
+void NavStates::update_target(geometry_msgs::PoseStamped target_pose)
+{
+  wp_goal_pub_.publish(target_pose);
 }
 
 void NavStates::update_states()
