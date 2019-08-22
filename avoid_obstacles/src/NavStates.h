@@ -64,6 +64,7 @@ private:
   ros::Publisher obs_cone_pub_;
   ros::Publisher nav_state_pub_;
   ros::Publisher known_obs_pub_;
+  ros::Publisher hill_wp_pub_;
 
   ros::Subscriber scan_sub_, odom_sub_, clicked_goal_sub_, path_sub_;
   ros::Subscriber cam_cone_pose_sub_, laser_cone_pose_sub_, bump_sub_;
@@ -75,9 +76,11 @@ private:
 
   tf::TransformListener listener;
   nav_msgs::Path m_path;
-  std_msgs::Int16 m_nav_state_msg;
+  std_msgs::Int16 m_nav_state_msg, m_hill_wp_msg;
 
   std::vector<geometry_msgs::Point> m_waypoints;
+  int m_current_waypoint_type;
+  int m_current_hill_type;
 
   bool m_collision, m_cone_detected, m_odom_received, m_path_received;
   bool m_init_wp_published, m_odom_goal_refresh_needed;
@@ -90,6 +93,7 @@ private:
   unsigned m_cone_detect_db_count;
 
   ros::Time state_start_time;
+  ros::Time m_bump_time;
 
   //parameters
   struct Parameters
@@ -99,6 +103,7 @@ private:
     double close_cone_to_bot_dist;
     double valid_cone_to_wp_dist;
     double near_path_dist;
+    double valid_end_of_path_dist;
     double desired_speed;
     double slow_speed;
     double max_omega;
@@ -111,10 +116,14 @@ private:
     double scan_collision_range;
     int cone_detect_db_limit;
     double cmd_speed_filter_factor;
+    bool report_bumped_obstacles;
+    //int min_new_path_size;
   }params;
 
   std::vector<double> x_coords;
   std::vector<double> y_coords;
+  std::vector<int> waypoint_type_list;
+  std::vector<int> hill_wp_list;
   bool waypoints_are_in_map_frame;
 
 };

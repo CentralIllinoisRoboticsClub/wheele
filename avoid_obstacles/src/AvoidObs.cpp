@@ -32,12 +32,14 @@ AvoidObs::AvoidObs()
     wp_cone_sub_ = nh_.subscribe("wp_cone_pose", 1, &AvoidObs::coneCallback, this);
     found_cone_sub_ = nh_.subscribe("found_cone",1, &AvoidObs::foundConeCallback, this);
     known_obstacle_sub_ = nh_.subscribe("known_obstacle",1,&AvoidObs::knownObstacleCallback, this);
+    hill_wp_sub_ = nh_.subscribe("hill_wp",1,&AvoidObs::hillWaypointCallback, this);
     nh_p  = ros::NodeHandle("~");
     nh_p.param("plan_rate_hz", plan_rate_, 1.0); //set in avoid_obs.launch
     nh_p.param("map_res_m", map_res_, 0.5);
     nh_p.param("map_size", n_width_, 200);
     nh_p.param("map_size", n_height_, 200);
     nh_p.param("max_range", max_range_, 40.0);
+    nh_p.param("min_hill_range", min_hill_range_, 1.0);
     nh_p.param("plan_range_m",plan_range_, 40.0);
     nh_p.param("clear_decrement",clear_decrement_,-5);
     nh_p.param("fill_increment",fill_increment_,10);
@@ -51,6 +53,8 @@ AvoidObs::AvoidObs()
     nh_p.param("cone_obs_thresh", cone_obs_thresh_, 20);
     nh_p.param("max_num_known_obstacles", max_num_known_obstacles_, 20);
     nh_p.param("known_obstacle_time_limit", known_obstacle_time_limit_, 30.0);
+
+    scan_range = max_range_;
 
     ROS_INFO("map_size (n cells): %d", n_width_);
     
@@ -102,6 +106,18 @@ void AvoidObs::knownObstacleCallback(const geometry_msgs::PoseStamped& obs_pose)
   if(knownObstacleDeq.size() > max_num_known_obstacles_)
   {
     knownObstacleDeq.pop_front();
+  }
+}
+
+void AvoidObs::hillWaypointCallback(const std_msgs::Int16& msg)
+{
+  if(msg.data == 1)
+  {
+    scan_range = min_hill_range_;
+  }
+  else
+  {
+    scan_range = max_range_;
   }
 }
 

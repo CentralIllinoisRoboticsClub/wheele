@@ -18,8 +18,12 @@
 #define STATE_TOUCH_TARGET 2
 #define STATE_SEARCH_IN_PLACE 3
 
+#define WP_TYPE_INTER 0
+#define WP_TYPE_CONE 1
+
 //Constructor
 NavStates::NavStates() :
+m_current_waypoint_type(WP_TYPE_INTER),
 m_collision(false),
 m_cone_detected(false),
 m_odom_received(false),
@@ -43,6 +47,7 @@ m_cone_detect_db_count(0)
   wp_cone_pub_ = nh_.advertise<geometry_msgs::PoseStamped>("wp_cone_pose",1); //temp, Need to send this to avoid_obs to clear the costmap at cone
   nav_state_pub_ = nh_.advertise<std_msgs::Int16>("nav_state",1);
   known_obs_pub_ = nh_.advertise<geometry_msgs::PoseStamped>("known_obstacle",1);
+  hill_wp_pub_ = nh_.advertise<std_msgs::Int16>("hill_wp",1);
 
   //Topic you want to subscribe
   scan_sub_ = nh_.subscribe("scan", 50, &NavStates::scanCallback, this); //receive laser scan
@@ -58,6 +63,7 @@ m_cone_detect_db_count(0)
   nh_p.param("close_cone_to_bot_dist", params.close_cone_to_bot_dist, 6.0);
   nh_p.param("valid_cone_to_wp_dist", params.valid_cone_to_wp_dist, 1.0);
   nh_p.param("near_path_dist", params.near_path_dist, 1.0);
+  nh_p.param("valid_end_of_path_dist", params.valid_end_of_path_dist, 5.0);
   nh_p.param("desired_speed", params.desired_speed, 0.6);
   nh_p.param("slow_speed", params.slow_speed, 0.3);
   nh_p.param("max_omega", params.max_omega, 0.5);
@@ -70,9 +76,12 @@ m_cone_detect_db_count(0)
   nh_p.param("scan_collision_range", params.scan_collision_range, 0.5);
   nh_p.param("cone_detect_db_limit", params.cone_detect_db_limit, 2);
   nh_p.param("cmd_speed_filter_factor", params.cmd_speed_filter_factor, 0.5);
+  nh_p.param("report_bumped_obstacles", params.report_bumped_obstacles, false);
 
   nh_p.param("x_coords", x_coords, x_coords);
   nh_p.param("y_coords", y_coords, y_coords);
+  nh_p.param("waypoint_types", waypoint_type_list, waypoint_type_list);
+  nh_p.param("hill_waypoint_list", hill_wp_list, hill_wp_list);
   nh_p.param("waypoints_are_in_map_frame", waypoints_are_in_map_frame, true);
 
   //listener.setExtrapolationLimit(ros::Duration(0.1));
@@ -121,6 +130,8 @@ NavStates::~NavStates(){}
 void NavStates::update_waypoint()
 {
   map_goal_pose.header.stamp = ros::Time::now();
+  m_current_waypoint_type = waypoint_type_list[m_index_wp];
+  m_current_hill_type = hill_wp_list[m_index_wp];
   map_goal_pose.pose.position.x = m_waypoints[m_index_wp].x;
   map_goal_pose.pose.position.y = m_waypoints[m_index_wp].y;
   camera_cone_pose_in_map = map_goal_pose;
@@ -138,10 +149,14 @@ void NavStates::update_waypoint()
       m_index_wp = 0;
     }
     wp_goal_pub_.publish(odom_goal_pose);
-    camera_cone_pose = odom_goal_pose;
-    wp_cone_pub_.publish(camera_cone_pose); // publish this once to avoid obs so it will clear the costmap at the initial goal, until it finds an updated goal from the camera
+    if(m_current_waypoint_type == WP_TYPE_CONE)
+    {
+      camera_cone_pose = odom_goal_pose;
+      wp_cone_pub_.publish(camera_cone_pose); // publish this once to avoid obs so it will clear the costmap at the initial goal, until it finds an updated goal from the camera
+    }
     ROS_INFO("wp_goal published");
     m_init_wp_published = true;
+    m_path_received = false; //avoid updating waypoint again if Astar has not yet responded to the just updated waypoint
     m_cone_detect_db_count = 0;
   }
 }
@@ -159,22 +174,35 @@ void NavStates::refresh_odom_goal()
     odom_goal_pose = odom_pose;
 
     wp_goal_pub_.publish(odom_goal_pose);
-    camera_cone_pose = odom_goal_pose;
-    wp_cone_pub_.publish(camera_cone_pose); // publish this once to avoid obs so it will clear the costmap at the initial goal, until it finds an updated goal from the camera
+    if(m_current_waypoint_type == WP_TYPE_CONE)
+    {
+      camera_cone_pose = odom_goal_pose;
+      wp_cone_pub_.publish(camera_cone_pose); // publish this once to avoid obs so it will clear the costmap at the initial goal, until it finds an updated goal from the camera
+    }
     m_odom_goal_refresh_needed = false;
   }
 }
 
 void NavStates::pathCallback(const nav_msgs::Path& path_in)
 {
-  m_path = path_in;
-  m_path_received = true;
-  m_index_path = 0;
+  // Verify m_path_received does not become true between update_waypoint() setting m_init_wp_published true and Astar publishing a new path to the old waypoint
+  unsigned path_size = path_in.poses.size();
+  if(path_size > 0)
+  {
+    // It is assumed that the next waypoint is far enough away such that the distance between the newly updated odom_goal_pose and a path to an old goal will be > valid_end_of_path_dist
+    if(distance_between_poses(path_in.poses[path_size-1], odom_goal_pose) < params.valid_end_of_path_dist) //both poses should be in the odom frame
+    {
+      m_path = path_in;
+      m_path_received = true;
+      m_index_path = 0;
+    }
+  }
+
 }
 
 void NavStates::camConeCallback(const geometry_msgs::PoseStamped& cone_pose_in)
 {
-  if(m_state != STATE_RETREAT_FROM_CONE)
+  if(m_state != STATE_RETREAT_FROM_CONE && m_current_waypoint_type == WP_TYPE_CONE) //TODO: Verify we should ignore this for intermediate waypoints
   {
     geometry_msgs::PoseStamped cone_in_map;
     if(waypoints_are_in_map_frame)
@@ -249,6 +277,19 @@ bool NavStates::getPoseInFrame(const geometry_msgs::PoseStamped& pose_in, std::s
 void NavStates::bumpCallback(const std_msgs::Int16& msg)
 {
   m_bump_switch = msg.data;
+  if(m_bump_switch && params.report_bumped_obstacles)
+  {
+    // TODO: Revisit the storage of known obs poses in Avoid Obs now that we will add potentially many known obstacles using the bumper
+    //       Check for duplicate known obstacles in the deque, store them with low resolution so very close obstacles are considered duplicates
+    //       Store the unique costmap index number of known obstacles and use that to check for duplicates
+    // Known obstacle pose should be published in the odom frame for AvoidObs costmap
+    if( (ros::Time::now()-m_bump_time).toSec() > params.reverse_time)
+    {
+      known_obs_pub_.publish(bot_pose);
+      m_bump_time = ros::Time::now();
+    }
+
+  }
 }
 
 void NavStates::mapToOdomUpdateCallback(const std_msgs::Int16& msg)
@@ -395,17 +436,26 @@ void NavStates::track_path()
     return;
   }
 
-  if(m_cone_detected)
+  if(m_cone_detected && m_current_waypoint_type == WP_TYPE_CONE) //TODO: Verify we should ignore m_cone_detected for intermediate waypoints
   {
     m_state = STATE_TURN_TO_TARGET;
     return;
   }
 
-  // end of path?
-  if(m_index_path == m_path.poses.size()-1)
+  // end of path?, See pathCallback
+  // Verify m_path_received does not become true between update_waypoint() setting m_init_wp_published true and Astar publishing a new path to the old waypoint
+  if(m_path_received && m_index_path == m_path.poses.size()-1)
   {
-    m_state = STATE_SEARCH_IN_PLACE;
-    return;
+    if(m_current_waypoint_type == WP_TYPE_CONE)
+    {
+      m_state = STATE_SEARCH_IN_PLACE;
+      return;
+    }
+    else if(m_init_wp_published)
+    {
+      m_init_wp_published = false;
+      update_waypoint();
+    }
   }
   //check if close to next path point and update
   if(nearPathPoint())
@@ -566,6 +616,9 @@ void NavStates::update_states()
 
   m_nav_state_msg.data = m_state;
   nav_state_pub_.publish(m_nav_state_msg);
+
+  m_hill_wp_msg.data = m_current_hill_type;
+  hill_wp_pub_.publish(m_hill_wp_msg);
 
   if(m_odom_goal_refresh_needed)
   {
