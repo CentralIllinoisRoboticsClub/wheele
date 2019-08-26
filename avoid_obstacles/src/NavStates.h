@@ -66,6 +66,7 @@ private:
   ros::Publisher nav_state_pub_;
   ros::Publisher known_obs_pub_;
   ros::Publisher hill_wp_pub_;
+  ros::Publisher valid_bump_pub_;
 
   ros::Subscriber scan_sub_, odom_sub_, clicked_goal_sub_, path_sub_;
   ros::Subscriber cam_cone_pose_sub_, laser_cone_pose_sub_, bump_sub_;
@@ -87,7 +88,9 @@ private:
   bool m_collision, m_cone_detected, m_odom_received, m_path_received, m_obs_cone_received;
   bool m_init_wp_published, m_odom_goal_refresh_needed;
   bool m_first_search;
+  bool m_valid_bump;
   int m_bump_switch;
+  int m_bump_count;
   unsigned m_num_waypoints, m_index_wp;
   int m_state;
   unsigned m_index_path;
@@ -122,6 +125,9 @@ private:
     double cmd_speed_filter_factor;
     bool report_bumped_obstacles;
     double max_camera_search_time;
+    double slow_approach_distance;
+    double reverse_speed;
+    int bump_db_limit;
     //int min_new_path_size;
   }params;
 

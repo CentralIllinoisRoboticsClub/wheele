@@ -33,6 +33,7 @@ m_init_wp_published(false),
 m_odom_goal_refresh_needed(false),
 m_first_search(true),
 m_bump_switch(0),
+m_bump_count(0),
 m_num_waypoints(0),
 m_index_wp(0),
 m_state(STATE_TRACK_PATH),
@@ -50,6 +51,7 @@ m_cone_detect_db_count(0)
   nav_state_pub_ = nh_.advertise<std_msgs::Int16>("nav_state",1);
   known_obs_pub_ = nh_.advertise<geometry_msgs::PoseStamped>("known_obstacle",1);
   hill_wp_pub_ = nh_.advertise<std_msgs::Int16>("hill_wp",1);
+  valid_bump_pub_ = nh_.advertise<std_msgs::Int16>("valid_bump",1);
 
   //Topic you want to subscribe
   scan_sub_ = nh_.subscribe("scan", 50, &NavStates::scanCallback, this); //receive laser scan
@@ -81,6 +83,9 @@ m_cone_detect_db_count(0)
   nh_p.param("cmd_speed_filter_factor", params.cmd_speed_filter_factor, 0.5);
   nh_p.param("report_bumped_obstacles", params.report_bumped_obstacles, false);
   nh_p.param("max_camera_search_time", params.max_camera_search_time, 7.0);
+  nh_p.param("slow_approach_distance", params.slow_approach_distance, 1.0);
+  nh_p.param("reverse_speed", params.reverse_speed, 0.8);
+  nh_p.param("bump_db_limit", params.bump_db_limit, 2);
 
   nh_p.param("x_coords", x_coords, x_coords);
   nh_p.param("y_coords", y_coords, y_coords);
@@ -289,7 +294,22 @@ bool NavStates::getPoseInFrame(const geometry_msgs::PoseStamped& pose_in, std::s
 void NavStates::bumpCallback(const std_msgs::Int16& msg)
 {
   m_bump_switch = msg.data;
-  if(m_bump_switch && params.report_bumped_obstacles)
+  m_bump_count += m_bump_switch;
+  if(m_bump_switch == 0)
+  {
+    m_bump_count = 0;
+  }
+
+  if(m_bump_count >= params.bump_db_limit)
+  {
+    m_valid_bump = true;
+  }
+  else
+  {
+    m_valid_bump = false;
+  }
+
+  if(m_valid_bump && params.report_bumped_obstacles)
   {
     // TODO: Revisit the storage of known obs poses in Avoid Obs now that we will add potentially many known obstacles using the bumper
     //       Check for duplicate known obstacles in the deque, store them with low resolution so very close obstacles are considered duplicates
@@ -302,6 +322,9 @@ void NavStates::bumpCallback(const std_msgs::Int16& msg)
     }
 
   }
+  std_msgs::Int16 valid_bump_msg;
+  valid_bump_msg.data = m_valid_bump;
+  valid_bump_pub_.publish(valid_bump_msg);
 }
 
 void NavStates::mapToOdomUpdateCallback(const std_msgs::Int16& msg)
@@ -342,6 +365,8 @@ void NavStates::scanCallback(const sensor_msgs::LaserScan& scan) //use a point c
   unsigned close_count = 0;
 
   // Declare "collision" if multiple lasers see an obstacle within close range
+  // TODO: Also calculate a min_obs_range to control m_speed in commandTo instead of using distance_between_poses
+  //       Set a boolean here, m_close_to_obs = min_obs_range < params.slow_approach_distance
   for (int i = 0; i < scan.ranges.size();i++)
   {
     float range = scan.ranges[i];
@@ -354,7 +379,7 @@ void NavStates::scanCallback(const sensor_msgs::LaserScan& scan) //use a point c
   if(close_count > 2) // TODO: Parameter, how many lasers in one scan need to see an obstacle
   {
     ++m_scan_collision_db_count;
-    if(m_scan_collision_db_count > params.scan_collision_db_limit)
+    if(m_scan_collision_db_count >= params.scan_collision_db_limit)
     {
       m_scan_collision_db_count = params.scan_collision_db_limit;
       m_collision = true;
@@ -380,6 +405,10 @@ double NavStates::getTargetHeading(const geometry_msgs::PoseStamped& goal)
 void NavStates::commandTo(const geometry_msgs::PoseStamped& goal)
 {
   m_speed = params.desired_speed;
+  if(m_state == STATE_TOUCH_TARGET && distance_between_poses(bot_pose, odom_goal_pose) < params.slow_approach_distance) // TODO: use m_close_to_obs from scanCallback
+  {
+    m_speed = params.slow_speed;
+  }
   double des_yaw = getTargetHeading(goal);
   double heading_error = des_yaw - bot_yaw;
   if(heading_error >= M_PI)
@@ -402,16 +431,16 @@ void NavStates::commandTo(const geometry_msgs::PoseStamped& goal)
   else
   {
     m_omega = 0.5*(heading_error); // TODO: parameter
-    if(fabs(m_omega) > 1.0)
+    if(fabs(m_omega) > 1.0) // slow for tight turns
     {
       m_omega = 1.0*m_omega/fabs(m_omega);
-      m_speed = 0.4;
+      m_speed = params.slow_speed;
     }
   }
 
   if(fabs(heading_error) > params.max_fwd_heading_error_deg*M_PI/180)
   {
-    m_speed = -m_speed;
+    m_speed = -params.reverse_speed; //-m_speed
   }
 
   //ROS_INFO("des_yaw, bot_yaw, omega: %0.1f, %0.1f, %0.1f",des_yaw*180/M_PI, bot_yaw*180/M_PI, m_omega);
@@ -440,7 +469,7 @@ void NavStates::track_path()
     return;
   }
 
-  if(m_bump_switch || m_collision)
+  if(m_valid_bump || m_collision)
   {
     m_state = STATE_RETREAT;
     m_speed = 0.0;
@@ -483,7 +512,7 @@ void NavStates::track_path()
 }
 void NavStates::retreat()
 {
-  m_speed = -params.desired_speed;
+  m_speed = -params.reverse_speed;
   m_omega = 0.0; //eventually retreat with m_omega = omega from path control
   if(get_time_in_state() > params.reverse_time)
   {
@@ -551,7 +580,7 @@ void NavStates::turn_to_target()
 void NavStates::touch_target()
 {
   commandTo(camera_cone_pose);
-  if(m_bump_switch > 0 || m_collision)
+  if(m_valid_bump || m_collision)
   {
     // this causes update_waypoint() to be called again until it is successful
     m_init_wp_published = false;
@@ -576,7 +605,7 @@ void NavStates::retreat_from_cone()
     update_waypoint();
   }
 
-  m_speed = -params.desired_speed;
+  m_speed = -params.reverse_speed;
   m_omega = 0.0;
   if(get_time_in_state() > params.reverse_time)
   {
@@ -637,7 +666,7 @@ void NavStates::update_states()
     m_speed = params.slow_speed*m_speed/fabs(m_speed);
   }
 
-  if(m_speed <= 0.0 && m_bump_switch)
+  if(m_speed <= 0.0 && m_valid_bump)
   {
     m_filt_speed = m_speed;
   }
