@@ -381,7 +381,7 @@ void AvoidObs::scanCallback(const sensor_msgs::LaserScan& scan) //use a point cl
         }
 
 	    // fill obstacle cells
-	    if(range < max_range_)
+	    if(range < scan_range)
 	    {
 			laser_point.point.x = range*cos(angle) ;
 			laser_point.point.y = range*sin(angle) ;
