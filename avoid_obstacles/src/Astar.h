@@ -17,6 +17,7 @@ public:
 	double get_plan_rate();
 	bool get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 					nav_msgs::OccupancyGrid map, nav_msgs::Path& path);
+	void findPath();
 
 	//The a-star path-finding data of a map grid cell
 	typedef struct {
@@ -55,6 +56,8 @@ private:
 
 	float map_x0, map_y0, map_res;
 	int NUM_ROWS, NUM_COLS;
+
+	nav_msgs::OccupancyGrid m_map;
 
 	//parameters
 	int obs_thresh;
