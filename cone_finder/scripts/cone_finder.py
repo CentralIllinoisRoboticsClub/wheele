@@ -105,16 +105,16 @@ class ConeFinder:
             noise_se = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(noise_se_w,noise_se_h))
             fill_se = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(fill_se_w,fill_se_h))
             #erosion then dilation, removes noise in background
-            opening = cv2.morphologyEx(hsv_filt,cv2.MORPH_OPEN,noise_se)
+            #opening = cv2.morphologyEx(hsv_filt,cv2.MORPH_OPEN,noise_se)
             #4.Closes the Thresholded Image
             #dilation then erosion, fills holes in foreground
-            closing = cv2.morphologyEx(opening,cv2.MORPH_CLOSE, fill_se)
-            open2 = cv2.morphologyEx(closing,cv2.MORPH_OPEN, rect_se)
-            
-            try:
-                self.pub_hsv_filt.publish(self.bridge.cv2_to_imgmsg(open2,"mono8"))
-            except CvBridgeError as e:
-                print(e)
+            #closing = cv2.morphologyEx(opening,cv2.MORPH_CLOSE, fill_se)
+            #open2 = cv2.morphologyEx(closing,cv2.MORPH_OPEN, rect_se)
+            open2 = hsv_filt
+            #try:
+            #    self.pub_hsv_filt.publish(self.bridge.cv2_to_imgmsg(open2,"mono8"))
+            #except CvBridgeError as e:
+            #    print(e)
             
             _, contours, hierarchy = cv2.findContours(open2,cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE) #python 2 vs 3
             # finding contour with maximum area and store it as best_cnt
