@@ -27,7 +27,7 @@
       desired_speed: 1.0
       slow_speed: 0.4
       max_omega: 2.0
-      max_fwd_heading_error_deg: 90.0
+      max_fwd_heading_error_deg: 180.0
       search_time: 2.0
       search_omega: 0.8
       reverse_time: 1.0
@@ -41,13 +41,14 @@
       slow_approach_distance: 2.0
       reverse_speed: 0.8
       bump_db_limit: 2
+      path_step_size: 6
 
-      waypoints_are_in_map_frame: false
+      waypoints_are_in_map_frame: true
     </rosparam>
 
-    <rosparam param="x_coords">[5.0, -12.0,  15.0, 20.0, 15.0]</rosparam>
-    <rosparam param="y_coords">[11.0, 6.0,   11.0, 36.0, 55.0]</rosparam>
-    <rosparam param="waypoint_types">[0, 1, 1, 0, 1]</rosparam>
+    <rosparam param="x_coords">[  5.0,  3.0, 19.5,  7.0, 19.5]</rosparam>
+    <rosparam param="y_coords">[-26.0,-10.0, 14.8, 37.0, 14.8]</rosparam>
+    <rosparam param="waypoint_types">[1, 0, 0, 1, 0]</rosparam>
     <rosparam param="hill_waypoint_list">[0, 0, 0, 0, 0]</rosparam>
   </node>
 

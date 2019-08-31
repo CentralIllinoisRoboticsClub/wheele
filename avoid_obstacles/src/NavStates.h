@@ -98,6 +98,8 @@ private:
   unsigned m_scan_collision_db_count;
   unsigned m_cone_detect_db_count;
 
+  bool m_close_to_obs;
+
   ros::Time state_start_time;
   ros::Time m_bump_time;
   ros::Time m_init_search_time;
@@ -128,6 +130,7 @@ private:
     double slow_approach_distance;
     double reverse_speed;
     int bump_db_limit;
+    int path_step_size;
     //int min_new_path_size;
   }params;
 

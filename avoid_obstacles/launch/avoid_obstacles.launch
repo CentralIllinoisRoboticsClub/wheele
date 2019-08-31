@@ -20,6 +20,7 @@
     <param name="known_obstacle_time_limit" value="30.0" />
   </node>
   <node pkg="avoid_obstacles" type="astar" name="astar" output="screen">
+    <param name="plan_rate_hz" value="5.0" />
     <param name="obs_thresh" value="30" />
     <param name="obs_weight" value="0.1" />
     <param name="max_plan_time_sec" value="3.0" />

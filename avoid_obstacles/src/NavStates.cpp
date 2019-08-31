@@ -40,8 +40,10 @@ m_state(STATE_TRACK_PATH),
 m_index_path(0),
 m_speed(0.0),
 m_omega(0.0),
+m_filt_speed(0.0),
 m_scan_collision_db_count(0),
-m_cone_detect_db_count(0)
+m_cone_detect_db_count(0),
+m_close_to_obs(false)
 {
   //Topics you want to publish
   cmd_pub_ = nh_.advertise<geometry_msgs::Twist>("cmd_vel",10);
@@ -86,6 +88,7 @@ m_cone_detect_db_count(0)
   nh_p.param("slow_approach_distance", params.slow_approach_distance, 1.0);
   nh_p.param("reverse_speed", params.reverse_speed, 0.8);
   nh_p.param("bump_db_limit", params.bump_db_limit, 2);
+  nh_p.param("path_step_size", params.path_step_size, 3);
 
   nh_p.param("x_coords", x_coords, x_coords);
   nh_p.param("y_coords", y_coords, y_coords);
@@ -365,8 +368,9 @@ void NavStates::scanCallback(const sensor_msgs::LaserScan& scan) //use a point c
   unsigned close_count = 0;
 
   // Declare "collision" if multiple lasers see an obstacle within close range
-  // TODO: Also calculate a min_obs_range to control m_speed in commandTo instead of using distance_between_poses
-  //       Set a boolean here, m_close_to_obs = min_obs_range < params.slow_approach_distance
+  // TODO: Also calculate a close_obs_range to control m_speed in commandTo instead of using distance_between_poses
+  //       Set a boolean here, m_close_to_obs = close_obs_range < params.slow_approach_distance
+  double close_obs_range = DBL_MAX;
   for (int i = 0; i < scan.ranges.size();i++)
   {
     float range = scan.ranges[i];
@@ -375,7 +379,14 @@ void NavStates::scanCallback(const sensor_msgs::LaserScan& scan) //use a point c
     {
       ++close_count;
     }
+    if(range < close_obs_range)
+    {
+      close_obs_range = range;
+    }
   }
+
+  m_close_to_obs = close_obs_range < params.slow_approach_distance;
+
   if(close_count > 2) // TODO: Parameter, how many lasers in one scan need to see an obstacle
   {
     ++m_scan_collision_db_count;
@@ -405,7 +416,9 @@ double NavStates::getTargetHeading(const geometry_msgs::PoseStamped& goal)
 void NavStates::commandTo(const geometry_msgs::PoseStamped& goal)
 {
   m_speed = params.desired_speed;
-  if(m_state == STATE_TOUCH_TARGET && distance_between_poses(bot_pose, odom_goal_pose) < params.slow_approach_distance) // TODO: use m_close_to_obs from scanCallback
+  // use m_close_to_obs from scanCallback
+  if(m_state == STATE_TOUCH_TARGET &&
+      ((distance_between_poses(bot_pose, odom_goal_pose) < params.slow_approach_distance) || m_close_to_obs) )
   {
     m_speed = params.slow_speed;
   }
@@ -501,7 +514,7 @@ void NavStates::track_path()
   //check if close to next path point and update
   if(nearPathPoint())
   {
-    m_index_path += 3; //TODO: PARAMETER
+    m_index_path += params.path_step_size; //TODO: PARAMETER
     if(m_index_path >= m_path.poses.size())
     {
       m_index_path = m_path.poses.size()-1;
@@ -674,6 +687,15 @@ void NavStates::update_states()
   {
     double alpha = params.cmd_speed_filter_factor;
     m_filt_speed = m_filt_speed*alpha + m_speed*(1.0-alpha);
+  }
+
+  if(fabs(m_filt_speed) > params.desired_speed)
+  {
+    m_filt_speed = 0.0;
+  }
+  if(fabs(m_omega) > params.max_omega)
+  {
+    m_omega = 0.0;
   }
 
   geometry_msgs::Twist cmd;
