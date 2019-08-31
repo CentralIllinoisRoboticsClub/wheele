@@ -46,6 +46,11 @@ class CANConverter():
         self.cmd.speed = 0.0
         self.cmd.curvature = 0.0
         
+        self.gps_update_distance = 10.0
+        self.ref_update_distance = 30.0
+        self.filt_weight_theta = 0.03
+        self.filt_weight_trans = 0.03
+        
         self.bad_raw_cmd_count = 0
         
         self.odom_pub = rospy.Publisher('odom', Odometry, queue_size=5)
@@ -112,24 +117,33 @@ class CANConverter():
             (trans,quat) = self.tf_listener.lookupTransform('/map', '/base_link', rospy.Time(0))
             xb = trans[0]
             yb = trans[1]
-            if( (xb-self.refx)**2 + (yb-self.refy)**2 > 20.**2): # TODO: parameter, update_distance_map_to_odom
+            dist_to_ref_sqd = (xb-self.refx)**2 + (yb-self.refy)**2
+            if( dist_to_ref_sqd > self.gps_update_distance**2): # TODO: parameter, update_distance_map_to_odom
                 print "Updating map to odom based on gps"
                 bot_theta = math.atan2(yb-self.refy, xb-self.refx)
                 diff_theta = gps_theta - bot_theta
-                self.odom_heading_deg += diff_theta*180./3.14
-                self.odom_x_in_map, self.odom_y_in_map = self.rotate_about_ref(self.odom_x_in_map, self.odom_y_in_map, diff_theta)
+                if(diff_theta > 3.14):
+                    diff_theta = diff_theta - 2*3.14
+                elif(diff_theta <= -3.14):
+                    diff_theta = diff_theta + 2*3.14
+                
+                filt_dtheta = diff_theta * self.filt_weight_theta
+                self.odom_heading_deg += filt_dtheta*180./3.14
+                self.odom_x_in_map, self.odom_y_in_map = self.rotate_about_ref(self.odom_x_in_map, self.odom_y_in_map, filt_dtheta)
                 
                 # rotate bot in map about current reference point
-                new_xb, new_yb = self.rotate_about_ref(xb, yb, diff_theta)
+                temp_xb, temp_yb = self.rotate_about_ref(xb, yb, diff_theta) # Important to temp rotate by full diff_theta, test in octave
                 # compare new bot in map to gps in map and update
-                odom_dx = (gpsx - new_xb) * 0.3 # TODO: parameter, update_odom_trans_gps_weight
-                odom_dy = (gpsy - new_yb) * 0.3 # TODO: parameter, update_odom_trans_gps_weight
+                odom_dx = (gpsx - temp_xb) * self.filt_weight_trans # TODO: parameter, update_odom_trans_gps_weight
+                odom_dy = (gpsy - temp_yb) * self.filt_weight_trans # TODO: parameter, update_odom_trans_gps_weight
                 self.odom_x_in_map += odom_dx
                 self.odom_y_in_map += odom_dy
-                # reset reference point
-                self.refx = new_xb + odom_dx
-                self.refy = new_yb + odom_dy
-                self.map_to_odom_updated = True
+                if(dist_to_ref_sqd > self.ref_update_distance**2):
+                    # reset reference point
+                    new_xb, new_yb = self.rotate_about_ref(xb, yb, filt_dtheta)
+                    self.refx = new_xb + odom_dx
+                    self.refy = new_yb + odom_dy
+                    self.map_to_odom_updated = True
         except:
             print "ERROR UPDATING MAP TO ODOM"
             aa=0
