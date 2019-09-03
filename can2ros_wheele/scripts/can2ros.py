@@ -104,6 +104,8 @@ class CANConverter():
         
         self.refx = 0
         self.refy = 0
+        self.refx_prev = 0
+        self.refy_prev = 0
         
         self.odom_x_in_map = 0
         self.odom_y_in_map = 0
@@ -112,15 +114,33 @@ class CANConverter():
     def gps_callback(self,data):
         gpsx = data.vector.x
         gpsy = data.vector.y
-        gps_theta = math.atan2(gpsy-self.refy, gpsx-self.refx)
-        try:
+        
+        use_prev_ref = False
+        
+        if True:
             (trans,quat) = self.tf_listener.lookupTransform('/map', '/base_link', rospy.Time(0))
             xb = trans[0]
             yb = trans[1]
             dist_to_ref_sqd = (xb-self.refx)**2 + (yb-self.refy)**2
-            if( dist_to_ref_sqd > self.gps_update_distance**2): # TODO: parameter, update_distance_map_to_odom
+            dist_to_ref_prev_sqd = (xb-self.refx_prev)**2 + (yb-self.refy_prev)**2
+            if(dist_to_ref_prev_sqd > dist_to_ref_sqd):
+                refx_far = self.refx_prev
+                refy_far = self.refy_prev
+                far_dist_to_ref_sqd = dist_to_ref_prev_sqd
+                use_prev_ref = True
+            else:
+                refx_far = self.refx
+                refy_far = self.refy
+                far_dist_to_ref_sqd = dist_to_ref_sqd
+                
+            filt_dtheta = 0.0
+            odom_dx = 0.0
+            odom_dy = 0.0
+                
+            if( far_dist_to_ref_sqd > self.gps_update_distance**2): # TODO: parameter, update_distance_map_to_odom
                 print "Updating map to odom based on gps"
-                bot_theta = math.atan2(yb-self.refy, xb-self.refx)
+                gps_theta = math.atan2(gpsy-refy_far, gpsx-refx_far)
+                bot_theta = math.atan2(yb-refy_far, xb-refx_far)
                 diff_theta = gps_theta - bot_theta
                 if(diff_theta > 3.14):
                     diff_theta = diff_theta - 2*3.14
@@ -129,28 +149,34 @@ class CANConverter():
                 
                 filt_dtheta = diff_theta * self.filt_weight_theta
                 self.odom_heading_deg += filt_dtheta*180./3.14
-                self.odom_x_in_map, self.odom_y_in_map = self.rotate_about_ref(self.odom_x_in_map, self.odom_y_in_map, filt_dtheta)
+                self.odom_x_in_map, self.odom_y_in_map = self.rotate_about_ref(self.odom_x_in_map, self.odom_y_in_map, filt_dtheta, use_prev_ref)
                 
                 # rotate bot in map about current reference point
-                temp_xb, temp_yb = self.rotate_about_ref(xb, yb, diff_theta) # Important to temp rotate by full diff_theta, test in octave
+                temp_xb, temp_yb = self.rotate_about_ref(xb, yb, diff_theta, use_prev_ref) # Important to temp rotate by full diff_theta, test in octave
                 # compare new bot in map to gps in map and update
                 odom_dx = (gpsx - temp_xb) * self.filt_weight_trans # TODO: parameter, update_odom_trans_gps_weight
                 odom_dy = (gpsy - temp_yb) * self.filt_weight_trans # TODO: parameter, update_odom_trans_gps_weight
                 self.odom_x_in_map += odom_dx
                 self.odom_y_in_map += odom_dy
-                if(dist_to_ref_sqd > self.ref_update_distance**2):
-                    # reset reference point
-                    new_xb, new_yb = self.rotate_about_ref(xb, yb, filt_dtheta)
-                    self.refx = new_xb + odom_dx
-                    self.refy = new_yb + odom_dy
-                    self.map_to_odom_updated = True
-        except:
+            if(dist_to_ref_sqd > self.ref_update_distance**2):
+                # reset reference point
+                new_xb, new_yb = self.rotate_about_ref(xb, yb, filt_dtheta, use_prev_ref)
+                self.refx_prev = self.refx
+                self.refy_prev = self.refy
+                self.refx = new_xb + odom_dx
+                self.refy = new_yb + odom_dy
+                self.map_to_odom_updated = True
+        if False:
             print "ERROR UPDATING MAP TO ODOM"
             aa=0
             
-    def rotate_about_ref(self, x, y, theta):
-        nx = self.refx + math.cos(theta)*(x-self.refx) - math.sin(theta)*(y-self.refy)
-        ny = self.refy + math.sin(theta)*(x-self.refx) + math.cos(theta)*(y-self.refy)
+    def rotate_about_ref(self, x, y, theta, use_prev_ref_flag):
+        if(use_prev_ref_flag):
+            nx = self.refx_prev + math.cos(theta)*(x-self.refx_prev) - math.sin(theta)*(y-self.refy_prev)
+            ny = self.refy_prev + math.sin(theta)*(x-self.refx_prev) + math.cos(theta)*(y-self.refy_prev)
+        else:
+            nx = self.refx + math.cos(theta)*(x-self.refx) - math.sin(theta)*(y-self.refy)
+            ny = self.refy + math.sin(theta)*(x-self.refx) + math.cos(theta)*(y-self.refy)
         return nx, ny
         
     def update_map_to_odom(self):
@@ -177,6 +203,13 @@ class CANConverter():
         quat,
         rospy.Time.now(),
         "ref",
+        "map"
+        )
+        self.ref_bc.sendTransform(
+        (self.refx_prev, self.refy_prev, 0.),
+        quat,
+        rospy.Time.now(),
+        "ref_prev",
         "map"
         )
 
