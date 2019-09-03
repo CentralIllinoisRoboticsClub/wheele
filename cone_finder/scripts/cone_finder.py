@@ -158,7 +158,7 @@ class ConeFinder:
                         local_y = -0.85 * local_x * px_norm
                         cone_pose = PoseStamped()
                         cone_pose.header.frame_id = "base_link"
-                        cone_pose.header.stamp = rospy.Time.now()
+                        cone_pose.header.stamp = rospy.Time.now() # assign this to rospy.Time.now() at the beginning of the processImage function
                         cone_pose.pose.orientation.w = 1.0
                         cone_pose.pose.position.x = local_x
                         cone_pose.pose.position.y = local_y

@@ -48,6 +48,7 @@ m_close_to_obs(false)
   //Topics you want to publish
   cmd_pub_ = nh_.advertise<geometry_msgs::Twist>("cmd_vel",10);
 
+  wp_static_map_goal_pub_ = nh_.advertise<geometry_msgs::PoseStamped>("static_map_goal",1);
   wp_goal_pub_ = nh_.advertise<geometry_msgs::PoseStamped>("wp_goal",1);
   wp_cone_pub_ = nh_.advertise<geometry_msgs::PoseStamped>("wp_cone_pose",1); //temp, Need to send this to avoid_obs to clear the costmap at cone
   nav_state_pub_ = nh_.advertise<std_msgs::Int16>("nav_state",1);
@@ -67,7 +68,6 @@ m_close_to_obs(false)
   nh_p  = ros::NodeHandle("~");
   nh_p.param("plan_rate_hz", params.plan_rate, 10.0);
   nh_p.param("use_PotFields", params.use_PotFields, false);
-  nh_p.param("close_cone_to_bot_dist", params.close_cone_to_bot_dist, 6.0);
   nh_p.param("valid_cone_to_wp_dist", params.valid_cone_to_wp_dist, 1.0);
   nh_p.param("near_path_dist", params.near_path_dist, 1.0);
   nh_p.param("valid_end_of_path_dist", params.valid_end_of_path_dist, 5.0);
@@ -150,6 +150,7 @@ void NavStates::update_waypoint()
   camera_cone_pose_in_map = map_goal_pose;
   ROS_INFO("Update Waypoint");
   ROS_INFO("map x,y = %0.1f, %0.1f",map_goal_pose.pose.position.x, map_goal_pose.pose.position.y);
+  wp_static_map_goal_pub_.publish(map_goal_pose);
   geometry_msgs::PoseStamped odom_pose;
   odom_pose.header.frame_id = "odom";
   if(getPoseInFrame(map_goal_pose, "odom", odom_pose))
@@ -216,6 +217,9 @@ void NavStates::pathCallback(const nav_msgs::Path& path_in)
 
 void NavStates::camConeCallback(const geometry_msgs::PoseStamped& cone_pose_in)
 {
+  // TODO: If state = search in place, set a boolean for search in place to move to state = STOP_AND_SEARCH
+  //   we also want to do this from the track path state if we are near the end of path
+
   if(m_state != STATE_RETREAT_FROM_CONE && m_current_waypoint_type == WP_TYPE_CONE) //TODO: Verify we should ignore this for intermediate waypoints
   {
     geometry_msgs::PoseStamped cone_in_map;
@@ -229,21 +233,24 @@ void NavStates::camConeCallback(const geometry_msgs::PoseStamped& cone_pose_in)
     }
     if(getPoseInFrame(cone_pose_in, cone_in_map.header.frame_id, cone_in_map))
     {
-      if(distance_between_poses(cone_in_map, map_goal_pose) < params.valid_cone_to_wp_dist)
+      double dist = distance_between_poses(cone_in_map, map_goal_pose);
+      ROS_INFO("camConeCallback, dist btwn cone and goal in map = %0.1f",dist);
+      if(dist < params.valid_cone_to_wp_dist)
       {
         geometry_msgs::PoseStamped cone_in_odom;
         cone_in_odom.header.frame_id = "odom";
         if(getPoseInFrame(cone_pose_in, "odom", cone_in_odom) )
         {
           ++m_cone_detect_db_count;
-          if( (distance_between_poses(cone_in_odom, bot_pose) < params.close_cone_to_bot_dist)
-              && (m_cone_detect_db_count >= params.cone_detect_db_limit) )
+          // TODO: Consider still checking bot to cone distance even though cone_finder also checks this
+          if(m_cone_detect_db_count >= params.cone_detect_db_limit)
           {
             camera_cone_pose_in_map = cone_in_map;
             camera_cone_pose = cone_in_odom;
             wp_cone_pub_.publish(camera_cone_pose);
             m_cone_detect_db_count = params.cone_detect_db_limit;
             m_cone_detected = true;
+            ROS_INFO("cone detected");
           }
         }
         else if(m_cone_detect_db_count > 0)

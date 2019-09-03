@@ -62,7 +62,7 @@ private:
 
   ros::NodeHandle nh_;
   ros::NodeHandle nh_p;
-  ros::Publisher cmd_pub_, wp_goal_pub_, wp_cone_pub_;
+  ros::Publisher cmd_pub_, wp_goal_pub_, wp_cone_pub_, wp_static_map_goal_pub_;
   ros::Publisher nav_state_pub_;
   ros::Publisher known_obs_pub_;
   ros::Publisher hill_wp_pub_;
@@ -109,7 +109,6 @@ private:
   {
     double plan_rate; //Default 10 Hz, how often we use potential fields to update cmd_vel
     bool use_PotFields;
-    double close_cone_to_bot_dist;
     double valid_cone_to_wp_dist;
     double near_path_dist;
     double valid_end_of_path_dist;
