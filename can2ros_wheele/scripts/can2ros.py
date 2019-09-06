@@ -112,13 +112,20 @@ class CANConverter():
         self.map_to_odom_updated = False
 
     def gps_callback(self,data):
+        # TODO: Make gps pose poseWithCovariance and update covariance in gps_transform based on /fix and/or other nmea data
         gpsx = data.vector.x
         gpsy = data.vector.y
         
+        bot_in_map_valid = False
         use_prev_ref = False
         
-        if True:
+        try:
             (trans,quat) = self.tf_listener.lookupTransform('/map', '/base_link', rospy.Time(0))
+            bot_in_map_valid = True
+        except:
+            print "can2ros gps_callback, transform lookup ERROR. map to base link"
+            
+        if bot_in_map_valid:
             xb = trans[0]
             yb = trans[1]
             dist_to_ref_sqd = (xb-self.refx)**2 + (yb-self.refy)**2
@@ -166,9 +173,6 @@ class CANConverter():
                 self.refx = new_xb + odom_dx
                 self.refy = new_yb + odom_dy
                 self.map_to_odom_updated = True
-        if False:
-            print "ERROR UPDATING MAP TO ODOM"
-            aa=0
             
     def rotate_about_ref(self, x, y, theta, use_prev_ref_flag):
         if(use_prev_ref_flag):
