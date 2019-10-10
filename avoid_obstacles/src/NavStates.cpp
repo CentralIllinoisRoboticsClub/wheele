@@ -24,6 +24,7 @@
 //Constructor
 NavStates::NavStates() :
 m_current_waypoint_type(WP_TYPE_INTER),
+m_current_hill_type(0),
 m_collision(false),
 m_cone_detected(false),
 m_odom_received(false),
@@ -32,6 +33,7 @@ m_obs_cone_received(false),
 m_init_wp_published(false),
 m_odom_goal_refresh_needed(false),
 m_first_search(true),
+m_valid_bump(false),
 m_bump_switch(0),
 m_bump_count(0),
 m_num_waypoints(0),
@@ -95,6 +97,7 @@ m_close_to_obs(false)
   nh_p.param("waypoint_types", waypoint_type_list, waypoint_type_list);
   nh_p.param("hill_waypoint_list", hill_wp_list, hill_wp_list);
   nh_p.param("waypoints_are_in_map_frame", waypoints_are_in_map_frame, true);
+  nh_p.param("sim_mode", sim_mode, false);
 
   //listener.setExtrapolationLimit(ros::Duration(0.1));
   listener.waitForTransform("laser", "odom", ros::Time(0), ros::Duration(10.0)); //TODO: ros::Time(0) or ::now() ??

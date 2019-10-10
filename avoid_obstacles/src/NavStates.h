@@ -138,6 +138,7 @@ private:
   std::vector<int> waypoint_type_list;
   std::vector<int> hill_wp_list;
   bool waypoints_are_in_map_frame;
+  bool sim_mode;
 
 };
 
