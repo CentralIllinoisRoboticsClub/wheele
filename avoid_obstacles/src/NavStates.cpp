@@ -237,7 +237,7 @@ void NavStates::camConeCallback(const geometry_msgs::PoseStamped& cone_pose_in)
     if(getPoseInFrame(cone_pose_in, cone_in_map.header.frame_id, cone_in_map))
     {
       double dist = distance_between_poses(cone_in_map, map_goal_pose);
-      ROS_INFO("camConeCallback, dist btwn cone and goal in map = %0.1f",dist);
+      //ROS_INFO("camConeCallback, dist btwn cone and goal in map = %0.1f",dist);
       if(dist < params.valid_cone_to_wp_dist)
       {
         geometry_msgs::PoseStamped cone_in_odom;
@@ -381,11 +381,12 @@ void NavStates::scanCallback(const sensor_msgs::LaserScan& scan) //use a point c
   // TODO: Also calculate a close_obs_range to control m_speed in commandTo instead of using distance_between_poses
   //       Set a boolean here, m_close_to_obs = close_obs_range < params.slow_approach_distance
   double close_obs_range = DBL_MAX;
-  for (int i = 0; i < scan.ranges.size();i++)
+  //for (int i = 0; i < scan.ranges.size();i++)
+  for (int i=260; i<280; i++) //temp hack for neato lidar on kkreate
   {
     float range = scan.ranges[i];
     float angle  = scan.angle_min +(float(i) * scan.angle_increment);
-    if(range < params.scan_collision_range)
+    if(range < params.scan_collision_range && range > 0.1)
     {
       ++close_count;
     }

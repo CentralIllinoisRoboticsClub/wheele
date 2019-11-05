@@ -18,7 +18,7 @@ AvoidObs::AvoidObs()
 {
     //Topics you want to publish
     costmap_pub_ = nh_.advertise<nav_msgs::OccupancyGrid>("costmap", 1);
-    cmd_pub_ = nh_.advertise<geometry_msgs::Twist>("cmd_vel",10);
+    cmd_pub_ = nh_.advertise<geometry_msgs::Twist>("pf_cmd_vel",10);
 
     pf_obs_pub_ = nh_.advertise<nav_msgs::OccupancyGrid>("pfObs", 1);
 
@@ -28,9 +28,9 @@ AvoidObs::AvoidObs()
     //Topic you want to subscribe
     scan_sub_ = nh_.subscribe("scan", 50, &AvoidObs::scanCallback, this); //receive laser scan
     odom_sub_ = nh_.subscribe("odom", 10, &AvoidObs::odomCallback, this);
-    goal_sub_ = nh_.subscribe("/move_base_simple/goal", 1, &AvoidObs::goalCallback, this);
+    goal_sub_ = nh_.subscribe("/move_base_simple/goal", 1, &AvoidObs::goalCallback, this); //Only for potential fields
     wp_cone_sub_ = nh_.subscribe("wp_cone_pose", 1, &AvoidObs::coneCallback, this);
-    found_cone_sub_ = nh_.subscribe("found_cone",1, &AvoidObs::foundConeCallback, this);
+    found_cone_sub_ = nh_.subscribe("found_cone",1, &AvoidObs::foundConeCallback, this); //Appears to never be used, verify who published "found_cone"
     known_obstacle_sub_ = nh_.subscribe("known_obstacle",1,&AvoidObs::knownObstacleCallback, this);
     hill_wp_sub_ = nh_.subscribe("hill_wp",1,&AvoidObs::hillWaypointCallback, this);
     nh_p  = ros::NodeHandle("~");
@@ -39,6 +39,7 @@ AvoidObs::AvoidObs()
     nh_p.param("map_size", n_width_, 200);
     nh_p.param("map_size", n_height_, 200);
     nh_p.param("max_range", max_range_, 40.0);
+    nh_p.param("min_range", min_range_, 0.1);
     nh_p.param("min_hill_range", min_hill_range_, 1.0);
     nh_p.param("plan_range_m",plan_range_, 40.0);
     nh_p.param("clear_decrement",clear_decrement_,-5);
@@ -53,6 +54,14 @@ AvoidObs::AvoidObs()
     nh_p.param("cone_obs_thresh", cone_obs_thresh_, 20);
     nh_p.param("max_num_known_obstacles", max_num_known_obstacles_, 20);
     nh_p.param("known_obstacle_time_limit", known_obstacle_time_limit_, 30.0);
+    nh_p.param("front_costmap_scan_angle_deg", front_costmap_scan_angle_deg_, 0.0);
+    nh_p.param("fov_costmap_scan_angle_deg", fov_costmap_scan_angle_deg_, 50.0);
+    nh_p.param("costmap_scan_angle_step", costmap_scan_angle_step_, 2);
+    nh_p.param("limit_fill_fov", limit_fill_fov_, false);
+    if(costmap_scan_angle_step_ < 1)
+    {
+      costmap_scan_angle_step_ = 1;
+    }
 
     scan_range = max_range_;
 
@@ -349,40 +358,60 @@ void AvoidObs::scanCallback(const sensor_msgs::LaserScan& scan) //use a point cl
 	laser_point.header.stamp = scan.header.stamp;//ros::Time();
 	laser_point.point.z = 0;
 	
-	for (int i = 0; i < scan.ranges.size();i++)
+	double front_angle_rad = front_costmap_scan_angle_deg_ * M_PI/180.0;
+	double angle_limit_rad = fov_costmap_scan_angle_deg_/2 * M_PI/180.0;
+	//ROS_ERROR("front, angle_limit rad: %0.3f, %0.3f", front_angle_rad, angle_limit_rad);
+
+	for (int i = 0; i < scan.ranges.size();i += costmap_scan_angle_step_)
 	{
 	    float range = scan.ranges[i];
+	    if(range < min_range_)
+	    {
+	      continue;
+	    }
+
 	    float angle  = scan.angle_min +(float(i) * scan.angle_increment);
+	    double angle_from_front = fabs(angle - front_angle_rad);
+	    while(angle_from_front > M_PI)
+	    {
+	      angle_from_front -= 2*M_PI;
+	    }
+	    if( fabs(angle_from_front) <= angle_limit_rad )
+	    {
 
-	    //clear map cells
-	    // only clear at range >= 0.5 meters
-        for (double r = 0.5; r < (range - map_res_*2.0); r += map_res_)
-        {
-            double angle_step = map_res_ / r;
-            //clearing as we pass obstacles, try angle_increment/3 vs /2 (reduce clearing fov per laser)
-            for (double a = (angle - scan.angle_increment / 2); a < (angle + scan.angle_increment / 2); a += angle_step)
-            {
-                laser_point.point.x = r * cos(a);
-                laser_point.point.y = r * sin(a);
-                try
-                {
-                    listener.transformPoint("odom", laser_point,
-                            odom_point);
-                    update_cell(odom_point.point.x, odom_point.point.y,
-                            clear_decrement_); //CLEAR_VAL_DECREASE
-                }
-                catch (tf::TransformException& ex)
-                {
-                    int xa;
-                    ROS_ERROR("AvoidObs clear Received an exception trying to transform a point : %s", ex.what());
-                }
+        //clear map cells only in limited FOV
+        // only clear at range >= 0.2 meters
+          for (double r = 0.2; r < (range - map_res_*2.0); r += map_res_)
+          {
+              double angle_step = map_res_ / r;
+              //clearing as we pass obstacles, try angle_increment/3 vs /2 (reduce clearing fov per laser)
+              for (double a = (angle - scan.angle_increment / 2); a < (angle + scan.angle_increment / 2); a += angle_step)
+              {
+                  laser_point.point.x = r * cos(a);
+                  laser_point.point.y = r * sin(a);
+                  try
+                  {
+                      listener.transformPoint("odom", laser_point,
+                              odom_point);
+                      update_cell(odom_point.point.x, odom_point.point.y,
+                              clear_decrement_); //CLEAR_VAL_DECREASE
+                  }
+                  catch (tf::TransformException& ex)
+                  {
+                      int xa;
+                      ROS_ERROR("AvoidObs clear Received an exception trying to transform a point : %s", ex.what());
+                  }
 
-            }
-        }
+              }
+          }
+	    }
 
 	    // fill obstacle cells
-	    if(range < scan_range)
+
+	    if(range < scan_range &&
+	        (fabs(angle_from_front) <= angle_limit_rad || !limit_fill_fov_) )
 	    {
+	    //ROS_ERROR("fill angle_from_front rad: %0.3f", angle_from_front);
 			laser_point.point.x = range*cos(angle) ;
 			laser_point.point.y = range*sin(angle) ;
 			int count = 0;

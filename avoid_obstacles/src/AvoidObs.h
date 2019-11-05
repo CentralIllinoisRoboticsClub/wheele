@@ -71,6 +71,7 @@ class AvoidObs
         double map_res_; //Default 0.5 meters
         int n_width_, n_height_;
         double max_range_;
+        double min_range_;
         double min_hill_range_;
         double plan_range_;
         int clear_decrement_, fill_increment_;
@@ -83,6 +84,9 @@ class AvoidObs
         int cone_obs_thresh_;
         int max_num_known_obstacles_;
         double known_obstacle_time_limit_;
+        double front_costmap_scan_angle_deg_, fov_costmap_scan_angle_deg_;
+        int costmap_scan_angle_step_;
+        bool limit_fill_fov_;
 };
 
 #endif

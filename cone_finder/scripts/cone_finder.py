@@ -103,9 +103,9 @@ class ConeFinder:
         if(not self.config == None):
             #CONE_MIN = np.array([self.config["hue_min"], self.config["sat_min"], self.config["val_min"]],np.uint8) #75, 86
             #CONE_MAX = np.array([self.config["hue_max"], self.config["sat_max"],self.config["val_max"]],np.uint8)
-            CONE_MIN = np.array([0, 60, 60],np.uint8) #75, 86;    40,40 or 70,70, # NEW FILTER
+            CONE_MIN = np.array([0, 40, 40],np.uint8) #75, 86;    40,40 or 70,70, # NEW FILTER
             CONE_MAX = np.array([12,255,255],np.uint8)
-            CONE_MIN2 = np.array([180-12, 60, 60],np.uint8)
+            CONE_MIN2 = np.array([180-12, 40, 40],np.uint8)
             CONE_MAX2 = np.array([180-0, 255,255],np.uint8)
             hsv = cv2.cvtColor(image_cv,cv2.COLOR_BGR2HSV)
             hsv_filt1 = cv2.inRange(hsv, CONE_MIN, CONE_MAX)
@@ -117,11 +117,11 @@ class ConeFinder:
             noise_se = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(noise_se_w,noise_se_h))
             fill_se = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(fill_se_w,fill_se_h))
             #erosion then dilation, removes noise in background
-            #opening = cv2.morphologyEx(hsv_filt,cv2.MORPH_OPEN,noise_se)
+            #opening = cv2.morphologyEx(hsv_filt,cv2.MORPH_OPEN,noise_se) #CONSIDER OPENING
             #4.Closes the Thresholded Image
             #dilation then erosion, fills holes in foreground
-            #closing = cv2.morphologyEx(opening,cv2.MORPH_CLOSE, fill_se)
-            #open2 = cv2.morphologyEx(closing,cv2.MORPH_OPEN, rect_se)
+            #closing = cv2.morphologyEx(opening,cv2.MORPH_CLOSE, fill_se) #CONSIDER CLOSING
+            #open2 = cv2.morphologyEx(closing,cv2.MORPH_OPEN, rect_se) #CONSIDER OPEN2
             open2 = hsv_filt
             #try:
             #    self.pub_hsv_filt.publish(self.bridge.cv2_to_imgmsg(open2,"mono8"))
@@ -140,14 +140,15 @@ class ConeFinder:
                 cnt_width = max(x)-min(x)
                 cnt_top_ind = np.argmax(y)
                 #Longest Distance between 2 points/area
-                if area > max_area and cnt_height/cnt_width > 0.5:# and cnt_height < 40 and cnt_width < 30:
-                    max_area = area
-                    best_cnt = cnt
-                    blob_found = True
-                    best_height = cnt_height
-                    best_width = cnt_width
-                    best_x = x
-                    best_y = y
+                if area > 600 and cnt_height/float(img_h) > 0.15:
+                    if area > max_area and cnt_height/cnt_width > 0.5:# and cnt_height < 40 and cnt_width < 30:
+                        max_area = area
+                        best_cnt = cnt
+                        blob_found = True
+                        best_height = cnt_height
+                        best_width = cnt_width
+                        best_x = x
+                        best_y = y
 
             # finding centroids of best_cnt and draw a circle there
             if(blob_found):
