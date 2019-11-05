@@ -8,16 +8,18 @@ from std_msgs.msg import Float32
 from cv_bridge import CvBridge, CvBridgeError
 import sys
 import threading
+import time
 
 from dynamic_reconfigure.server import Server
-from cone_detector.cfg import ConeConfig
+#from cone_detector.cfg import ConeConfig
+#from cone_finder.cfg import ConeConfig
 
-rect_w = 3;
-rect_h = 6;
-noise_se_w = 3;
-noise_se_h = 7;
-fill_se_w = 3;
-fill_se_h = 10;
+rect_w = 3; #3
+rect_h = 6; #6
+noise_se_w = 3; #3
+noise_se_h = 7; #7
+fill_se_w = 7; #3
+fill_se_h = 10; #10
 
 only_publish_detections = False
 
@@ -25,16 +27,20 @@ class ConeFinder:
     def __init__(self):        
         self.node_name = "Cone Finder"
         self.thread_lock = threading.Lock()
-        self.sub_image = rospy.Subscriber("/camera/image_raw", Image, self.cbImage, queue_size=1)
+        
         self.pub_image = rospy.Publisher("cone_img", Image, queue_size=1)
         self.pub_hsv_filt = rospy.Publisher("hsv_filt", Image, queue_size=1)
         self.pub_cone_pose = rospy.Publisher("raw_cone_pose", PoseStamped, queue_size = 5)
         self.bridge = CvBridge()
+        time.sleep(1.0)
         
-        self.config = None
-        self.srv = Server(ConeConfig, self.config_callback)
+        self.config = 1
+        #self.config = None
+        #self.srv = Server(ConeConfig, self.config_callback)
 
-        rospy.loginfo("Initialized Cone Finder")        
+        rospy.loginfo("Initialized Cone Finder")
+        
+        self.sub_image = rospy.Subscriber("/camera/image_raw", Image, self.cbImage, queue_size=1)
 
     def config_callback(self, config, level):
         rospy.loginfo("""Reconfigure Request: {hue_min}, {hue_max}, {sat_min}, {sat_max}, {val_min}, {val_max}, {double_param},\ 
@@ -86,15 +92,21 @@ class ConeFinder:
         blob_found = False
         if not self.thread_lock.acquire(False):
             return
-        image_cv = self.bridge.imgmsg_to_cv2(image_msg)
-        img_h, img_w, img_d = image_cv.shape
+        try:
+            image_cv = self.bridge.imgmsg_to_cv2(image_msg)
+            img_h, img_w, img_d = image_cv.shape
+            print('image received')
+        except:
+            print('image error')
+            return
         
         if(not self.config == None):
-                
-            CONE_MIN = np.array([self.config["hue_min"], self.config["sat_min"], self.config["val_min"]],np.uint8) #75, 86
-            CONE_MAX = np.array([self.config["hue_max"], self.config["sat_max"],self.config["val_max"]],np.uint8)
-            CONE_MIN2 = np.array([180-self.config["hue_max"], self.config["sat_min"], self.config["val_min"]],np.uint8)
-            CONE_MAX2 = np.array([180-self.config["hue_min"], self.config["sat_max"],self.config["val_max"]],np.uint8)
+            #CONE_MIN = np.array([self.config["hue_min"], self.config["sat_min"], self.config["val_min"]],np.uint8) #75, 86
+            #CONE_MAX = np.array([self.config["hue_max"], self.config["sat_max"],self.config["val_max"]],np.uint8)
+            CONE_MIN = np.array([0, 60, 60],np.uint8) #75, 86;    40,40 or 70,70, # NEW FILTER
+            CONE_MAX = np.array([12,255,255],np.uint8)
+            CONE_MIN2 = np.array([180-12, 60, 60],np.uint8)
+            CONE_MAX2 = np.array([180-0, 255,255],np.uint8)
             hsv = cv2.cvtColor(image_cv,cv2.COLOR_BGR2HSV)
             hsv_filt1 = cv2.inRange(hsv, CONE_MIN, CONE_MAX)
             hsv_filt2 = cv2.inRange(hsv, CONE_MIN2, CONE_MAX2)
@@ -126,12 +138,16 @@ class ConeFinder:
                 y = pts[:,1]
                 cnt_height = max(y)-min(y)
                 cnt_width = max(x)-min(x)
+                cnt_top_ind = np.argmax(y)
                 #Longest Distance between 2 points/area
                 if area > max_area and cnt_height/cnt_width > 0.5:# and cnt_height < 40 and cnt_width < 30:
                     max_area = area
                     best_cnt = cnt
                     blob_found = True
                     best_height = cnt_height
+                    best_width = cnt_width
+                    best_x = x
+                    best_y = y
 
             # finding centroids of best_cnt and draw a circle there
             if(blob_found):
@@ -148,21 +164,27 @@ class ConeFinder:
                     px_norm = (cx-img_w/2.0)/float(img_w)
                     py_norm = (cy-img_h/2.0)/float(img_h)
                     ph_norm = best_height/float(img_h)
-                    ideal_py_norm = -0.05
+
+                    #ideal_py_norm = -0.05
+                    top_width = abs(best_x[-3]-best_x[2])
+                    print("norm px,py,ph,miny,top_w: ", px_norm, py_norm, ph_norm, min(best_y), top_width)
                     
-                    local_x = 0.5/ph_norm
-                    rospy.loginfo("Cone local_x: %0.1f, py_norm: %0.2f",local_x, py_norm)
-                    blob_shape = self.detect_shape(best_cnt)
-                    print(blob_shape)
-                    if(local_x < 10.0 and (abs(py_norm-ideal_py_norm) < 0.2 and blob_shape=="triangle") ): #TODO: parameter
-                        local_y = -0.85 * local_x * px_norm
-                        cone_pose = PoseStamped()
-                        cone_pose.header.frame_id = "base_link"
-                        cone_pose.header.stamp = rospy.Time.now() # assign this to rospy.Time.now() at the beginning of the processImage function
-                        cone_pose.pose.orientation.w = 1.0
-                        cone_pose.pose.position.x = local_x
-                        cone_pose.pose.position.y = local_y
-                        self.pub_cone_pose.publish(cone_pose)
+                    if( (best_width > top_width + 10 and best_width > 30) or (min(best_y) < 10 and best_width > 70) ):
+                        #local_x = 0.5/ph_norm
+                        local_x, cone_clear = self.calc_cone_x(ph_norm, min(best_y), top_width )
+                        rospy.loginfo("Cone local_x: %0.1f, py_norm: %0.2f",local_x, py_norm)
+                        #blob_shape = self.detect_shape(best_cnt)
+                        #print(blob_shape)
+                        #if(local_x < 10.0 and (abs(py_norm-ideal_py_norm) < 0.2 and blob_shape=="triangle") ): #TODO: parameter
+                        if(local_x > 0.1 and local_x < 4.0 and py_norm < 0):
+                            local_y = -1.18 * local_x * px_norm
+                            cone_pose = PoseStamped()
+                            cone_pose.header.frame_id = "base_link"
+                            cone_pose.header.stamp = rospy.Time.now() # assign this to rospy.Time.now() at the beginning of the processImage function
+                            cone_pose.pose.orientation.w = 1.0
+                            cone_pose.pose.position.x = local_x
+                            cone_pose.pose.position.y = local_y
+                            self.pub_cone_pose.publish(cone_pose)
             
             
             try:
@@ -172,6 +194,38 @@ class ConeFinder:
         
         #rospy.loginfo("Cone Search Done")
         self.thread_lock.release()
+        
+    def calc_cone_x(self, ph_norm, min_py, top_width):
+        cone_clear = False
+        netx = -1
+        # x based on ph_norm
+        x1 = -1
+        if(ph_norm > 2):
+            x1 = 0.5/ph_norm - 0.15
+        
+        # x based on min y pixel and top_width
+        x2 = -1
+        if(min_py <= 10):
+            x2 = -0.007*top_width + 0.83 #-0.007*tw + 0.93
+        elif(min_py <= 90):
+            x2 = 0.012*min_py + 0.55 #0.014*min_py + 0.65
+        elif(min_py < 125):
+            x2 = 0.047*min_py - 2.6 #0.059*min_py - 3.4
+        
+        if(x1 > 0 and x2 > 0):
+            if(abs(x1-x2) < 0.3):
+                netx = (x1+x2)/2
+                cone_clear = True
+            else:
+                netx = x2
+        elif(x1 < 0 and x2 < 0):
+            netx = -1
+        elif(x1 > 0 and x2 < 0):
+            netx = x1
+        elif(x1 < 0 and x2 > 0):
+            netx = x2
+            
+        return [netx, cone_clear]
 
 
 if __name__=="__main__":    

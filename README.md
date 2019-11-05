@@ -92,7 +92,9 @@ rostopic pub --once /cmd_vel geometry_msgs/Twist  '{linear:  {x: -0.1, y: 0.0, z
 ```
 
 ## Useful Reference Links:
-http://henrysbench.capnfatz.com/henrys-bench/arduino-projects-tips-and-more/arduino-can-bus-module-1st-network-tutorial/
+https://www.electronicshub.org/arduino-mcp2515-can-bus-tutorial/ 
+http://henrysbench.capnfatz.com/henrys-bench/arduino-projects-tips-and-more/arduino-can-bus-module-1st-network-tutorial/ 
+http://henrysbench.capnfatz.com/henrys-bench/arduino-projects-tips-and-more/arduino-can-bus-module-pin-outs-and-schematics/ 
 
 ## Dependencies
 ### (external) ROS packages used:
