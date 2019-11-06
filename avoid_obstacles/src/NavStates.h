@@ -57,8 +57,10 @@ private:
   void turn_to_target();
   void touch_target();
   void retreat_from_cone();
+  void nextConeDetectedState();
   void update_target();
   void update_target(geometry_msgs::PoseStamped target_pose);
+  void check_progress();
 
   ros::NodeHandle nh_;
   ros::NodeHandle nh_p;
@@ -73,7 +75,7 @@ private:
   ros::Subscriber obs_cone_sub_;
   ros::Subscriber map_to_odom_update_sub_;
 
-  geometry_msgs::PoseStamped bot_pose, map_goal_pose, odom_goal_pose;
+  geometry_msgs::PoseStamped bot_pose, map_goal_pose, odom_goal_pose, progress_ref_pose;
   geometry_msgs::PoseStamped camera_cone_pose, obs_cone_pose, camera_cone_pose_in_map;
   float bot_yaw;
 
@@ -97,19 +99,26 @@ private:
   double m_speed, m_omega, m_filt_speed;
   unsigned m_scan_collision_db_count;
   unsigned m_cone_detect_db_count;
+  unsigned m_stuck_count;
+  double m_bot_to_cone_dist;
+  double valid_dist_perc_increase;
 
   bool m_close_to_obs;
+  bool m_initialized;
 
   ros::Time state_start_time;
   ros::Time m_bump_time;
   ros::Time m_init_search_time;
+  ros::Time m_last_check_stuck_time;
 
   //parameters
   struct Parameters
   {
     double plan_rate; //Default 10 Hz, how often we use potential fields to update cmd_vel
     bool use_PotFields;
+    double close_cone_to_bot_dist;
     double valid_cone_to_wp_dist;
+    double valid_dist_growth; // (0 to 1.0) Percent increase step to close_cone_to_bot_dist and valid_cone_to_wp_dist
     double near_path_dist;
     double valid_end_of_path_dist;
     double desired_speed;
@@ -130,6 +139,9 @@ private:
     double reverse_speed;
     int bump_db_limit;
     int path_step_size;
+    double check_stuck_time_period;
+    double expected_progress_distance;
+    int stuck_db_limit;
     //int min_new_path_size;
   }params;
 

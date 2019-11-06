@@ -45,7 +45,10 @@ m_omega(0.0),
 m_filt_speed(0.0),
 m_scan_collision_db_count(0),
 m_cone_detect_db_count(0),
-m_close_to_obs(false)
+m_bot_to_cone_dist(100.0),
+valid_dist_perc_increase(0.0),
+m_close_to_obs(false),
+m_initialized(false)
 {
   //Topics you want to publish
   cmd_pub_ = nh_.advertise<geometry_msgs::Twist>("cmd_vel",10);
@@ -70,7 +73,9 @@ m_close_to_obs(false)
   nh_p  = ros::NodeHandle("~");
   nh_p.param("plan_rate_hz", params.plan_rate, 10.0);
   nh_p.param("use_PotFields", params.use_PotFields, false);
+  nh_p.param("close_cone_to_bot_dist", params.close_cone_to_bot_dist, 1.0);
   nh_p.param("valid_cone_to_wp_dist", params.valid_cone_to_wp_dist, 1.0);
+  nh_p.param("valid_dist_growth", params.valid_dist_growth, 0.2);
   nh_p.param("near_path_dist", params.near_path_dist, 1.0);
   nh_p.param("valid_end_of_path_dist", params.valid_end_of_path_dist, 5.0);
   nh_p.param("desired_speed", params.desired_speed, 0.6);
@@ -91,6 +96,10 @@ m_close_to_obs(false)
   nh_p.param("reverse_speed", params.reverse_speed, 0.8);
   nh_p.param("bump_db_limit", params.bump_db_limit, 2);
   nh_p.param("path_step_size", params.path_step_size, 3);
+
+  nh_p.param("check_stuck_time_period", params.check_stuck_time_period, 2.0);
+  nh_p.param("expected_progress_distance", params.expected_progress_distance, 1.0);
+  nh_p.param("stuck_db_limit", params.stuck_db_limit, 2);
 
   nh_p.param("x_coords", x_coords, x_coords);
   nh_p.param("y_coords", y_coords, y_coords);
@@ -119,6 +128,8 @@ m_close_to_obs(false)
   odom_goal_pose = bot_pose;
   bot_yaw = 0.0;
 
+  progress_ref_pose = bot_pose;
+
   camera_cone_pose.header.frame_id = "odom";
   obs_cone_pose.header.frame_id = "odom";
   camera_cone_pose.pose.orientation.w = 1.0;
@@ -144,6 +155,11 @@ NavStates::~NavStates(){}
 
 void NavStates::update_waypoint()
 {
+  valid_dist_perc_increase = 0.0;
+  m_last_check_stuck_time = ros::Time::now();
+  progress_ref_pose = bot_pose;
+  m_stuck_count = 0;
+
   m_first_search = true; // used to reset the m_init_search_time in search_in_place state
   map_goal_pose.header.stamp = ros::Time::now();
   m_current_waypoint_type = waypoint_type_list[m_index_wp];
@@ -210,9 +226,12 @@ void NavStates::pathCallback(const nav_msgs::Path& path_in)
     // It is assumed that the next waypoint is far enough away such that the distance between the newly updated odom_goal_pose and a path to an old goal will be > valid_end_of_path_dist
     if(distance_between_poses(path_in.poses[path_size-1], odom_goal_pose) < params.valid_end_of_path_dist) //both poses should be in the odom frame
     {
-      m_path = path_in;
-      m_path_received = true;
-      m_index_path = 0;
+      if(!m_path_received || m_index_path > 0)
+      {
+        m_path = path_in;
+        m_path_received = true;
+        m_index_path = 0;
+      }
     }
   }
 
@@ -238,12 +257,13 @@ void NavStates::camConeCallback(const geometry_msgs::PoseStamped& cone_pose_in)
     {
       double dist = distance_between_poses(cone_in_map, map_goal_pose);
       //ROS_INFO("camConeCallback, dist btwn cone and goal in map = %0.1f",dist);
-      if(dist < params.valid_cone_to_wp_dist)
+      if(dist < params.valid_cone_to_wp_dist*(1.0+valid_dist_perc_increase) )
       {
         geometry_msgs::PoseStamped cone_in_odom;
         cone_in_odom.header.frame_id = "odom";
         if(getPoseInFrame(cone_pose_in, "odom", cone_in_odom) )
         {
+          m_bot_to_cone_dist = distance_between_poses(cone_in_odom, bot_pose);
           ++m_cone_detect_db_count;
           // TODO: Consider still checking bot to cone distance even though cone_finder also checks this
           if(m_cone_detect_db_count >= params.cone_detect_db_limit)
@@ -455,10 +475,10 @@ void NavStates::commandTo(const geometry_msgs::PoseStamped& goal)
   else
   {
     m_omega = 0.5*(heading_error); // TODO: parameter
-    if(fabs(m_omega) > 1.0) // slow for tight turns
+    if(fabs(m_omega) > 0.5) // slow for tight turns
     {
       m_omega = 1.0*m_omega/fabs(m_omega);
-      m_speed = params.slow_speed;
+      m_speed = 0.0*params.slow_speed; //temp hack for kkreate
     }
   }
 
@@ -501,7 +521,8 @@ void NavStates::track_path()
     return;
   }
 
-  if(m_cone_detected && m_current_waypoint_type == WP_TYPE_CONE) //TODO: Verify we should ignore m_cone_detected for intermediate waypoints
+  if(m_cone_detected && m_current_waypoint_type == WP_TYPE_CONE //TODO: Verify we should ignore m_cone_detected for intermediate waypoints
+      && m_bot_to_cone_dist < params.close_cone_to_bot_dist*(1.0+valid_dist_perc_increase) )
   {
     m_state = STATE_TURN_TO_TARGET;
     return;
@@ -509,7 +530,7 @@ void NavStates::track_path()
 
   // end of path?, See pathCallback
   // Verify m_path_received does not become true between update_waypoint() setting m_init_wp_published true and Astar publishing a new path to the old waypoint
-  if(m_path_received && m_index_path == m_path.poses.size()-1)
+  if(m_path_received && m_index_path == m_path.poses.size()-1 && !m_cone_detected)
   {
     if(m_current_waypoint_type == WP_TYPE_CONE)
     {
@@ -523,6 +544,10 @@ void NavStates::track_path()
     }
   }
   //check if close to next path point and update
+  // CAN GET STUCK AT THE FIRST PATH POINT, MAYBE WHEN THE PATH IS UPDATING SO OFTEN WE KEEP ON RESETTING THE PATH INDEX TO THE FIRST POINT
+  // REGARDLESS OF WHERE YOU GET STUCK, DESIGN STUCK DETECTION AND START LOOSENING PARAMETERS THE LONGER YOU REMAIN STUCK
+  // if stuck_time > t1, close_cone_to_bot and wp dist += 0.2 m (have a dynamic add_on_dist to these two constant parameters, reset to 0 after you touch a cone)
+  // if stuck_time > t2, close_cone_to_bot and wp_dist += 0.2 m
   if(nearPathPoint())
   {
     m_index_path += params.path_step_size; //TODO: PARAMETER
@@ -552,11 +577,11 @@ void NavStates::search_in_place()
     m_first_search = false;
   }
 
-  m_speed = params.slow_speed;
+  m_speed = 0*params.slow_speed; //temp hack for kkreate
   m_omega = params.search_omega;
   if(m_cone_detected)
   {
-    m_state = STATE_TOUCH_TARGET;
+    nextConeDetectedState();
     update_target();
   }
   // If still at end of path, it will come right back here from STATE_TRACK_PATH
@@ -583,7 +608,7 @@ void NavStates::search_in_place()
 void NavStates::turn_to_target()
 {
   double des_yaw = getTargetHeading(camera_cone_pose);
-  m_speed = params.slow_speed;
+  m_speed = 0*params.slow_speed; //temp hack for kkreate
   m_omega = 1.0*(des_yaw - bot_yaw);
 
   if(fabs(m_omega) > params.max_omega) // TODO: PARAMETER
@@ -592,7 +617,7 @@ void NavStates::turn_to_target()
     m_omega = params.search_omega*m_omega/fabs(m_omega); //TODO: PARAMETER
   if(m_cone_detected)
   {
-    m_state = STATE_TOUCH_TARGET;
+    nextConeDetectedState();
     update_target();
     return;
   }
@@ -603,6 +628,12 @@ void NavStates::turn_to_target()
 }
 void NavStates::touch_target()
 {
+  if(m_bot_to_cone_dist > params.close_cone_to_bot_dist*(1.0+valid_dist_perc_increase) )
+  {
+    m_state = STATE_TRACK_PATH;
+    return;
+  }
+
   commandTo(camera_cone_pose);
   if(m_valid_bump || m_collision)
   {
@@ -637,6 +668,17 @@ void NavStates::retreat_from_cone()
     m_state = STATE_TRACK_PATH;
   }
 }
+void NavStates::nextConeDetectedState()
+{
+  if(m_bot_to_cone_dist < params.close_cone_to_bot_dist*(1.0+valid_dist_perc_increase) )
+  {
+    m_state = STATE_TOUCH_TARGET;
+  }
+  else
+  {
+    m_state = STATE_TRACK_PATH;
+  }
+}
 void NavStates::update_target()
 {
   wp_goal_pub_.publish(camera_cone_pose);
@@ -647,8 +689,40 @@ void NavStates::update_target(geometry_msgs::PoseStamped target_pose)
   wp_goal_pub_.publish(target_pose);
 }
 
+void NavStates::check_progress()
+{
+  ros::Time now_time = ros::Time::now();
+  if(!m_initialized)
+  {
+    m_last_check_stuck_time = now_time;
+  }
+
+  if( (now_time - m_last_check_stuck_time).toSec() > params.check_stuck_time_period)
+  {
+    ROS_INFO("*********CHECK PROGRESS*********");
+    m_last_check_stuck_time = now_time;
+    double dist = distance_between_poses(bot_pose, progress_ref_pose);
+    ROS_INFO("progress dist = %0.1f", dist);
+    if(dist < params.expected_progress_distance) // && m_bot_to_cone_dist < 2.0)
+    {
+      ++m_stuck_count;
+      if(m_stuck_count > params.stuck_db_limit)
+      {
+        valid_dist_perc_increase += params.valid_dist_growth;
+      }
+    }
+    else
+    {
+      progress_ref_pose = bot_pose;
+      m_stuck_count = 0;
+    }
+    ROS_INFO("stuck_count, dist_perc_increase: %d, %0.2f", m_stuck_count, valid_dist_perc_increase);
+  }
+}
+
 void NavStates::update_states()
 {
+  check_progress();
   int prev_state = m_state;
   switch(m_state) {
   case STATE_TRACK_PATH:
@@ -687,7 +761,7 @@ void NavStates::update_states()
   if(fabs(m_omega) > params.max_omega)
   {
     m_omega = params.max_omega*m_omega/fabs(m_omega);
-    m_speed = params.slow_speed*m_speed/fabs(m_speed);
+    m_speed = 0*params.slow_speed*m_speed/fabs(m_speed); //temp hack for kkreate
   }
 
   if(m_speed <= 0.0 && m_valid_bump)
@@ -708,6 +782,8 @@ void NavStates::update_states()
   {
     m_omega = 0.0;
   }
+
+  m_initialized = m_filt_speed > 0;
 
   geometry_msgs::Twist cmd;
   cmd.linear.x = m_filt_speed;
