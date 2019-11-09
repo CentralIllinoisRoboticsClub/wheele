@@ -43,13 +43,17 @@
       bump_db_limit: 2
       path_step_size: 3
 
-      waypoints_are_in_map_frame: true
+      waypoints_are_in_map_frame: map
     </rosparam>
 
-    <rosparam param="x_coords">[10,  0,  25, 27]</rosparam>
-    <rosparam param="y_coords">[0, -15, -15, 30]</rosparam>
-    <rosparam param="waypoint_types">[0, 1, 1, 1]</rosparam>
-    <rosparam param="hill_waypoint_list">[0, 0, 0, 0]</rosparam>
+    <!-- <rosparam param="x_coords">[34,  32,  37, 33, 44]</rosparam> -->
+    <!-- <rosparam param="y_coords">[0, -23, -26, -47, -92]</rosparam> -->
+    <rosparam param="x_coords">[33,  38,  41, 41, 59]</rosparam>
+    <rosparam param="y_coords">[8, -17, -18, -39, -79]</rosparam>
+    <!-- (x,y): (40.707680, -89.525039); (40.707754, -89.524649); (40.707525, -89.524590); (40.707519, -89.524550); (40.707331, -89.524550); (40.706973, -89.524336) -->
+    
+    <rosparam param="waypoint_types">[1, 1, 0, 0, 1]</rosparam>
+    <rosparam param="hill_waypoint_list">[0, 0, 0, 0, 0]</rosparam>
   </node>
 
   <node pkg="cv_camera" type="cv_camera_node" name="camera">

@@ -1,7 +1,7 @@
 <launch>
   <node pkg="avoid_obstacles" type="avoid_obs" name="avoid_obs" output="screen">
     <param name="plan_rate_hz" value="1.0" />
-    <param name="map_res_m" value="0.5" />
+    <param name="map_res_m" value="1.0" />
     <param name="map_size" value="301" />
     <param name="max_range" value="40.0" />
     <param name="min_hill_range" value="1.0" />
