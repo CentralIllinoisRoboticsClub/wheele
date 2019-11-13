@@ -30,12 +30,16 @@ AvoidObs::AvoidObs()
     odom_sub_ = nh_.subscribe("odom", 10, &AvoidObs::odomCallback, this);
     goal_sub_ = nh_.subscribe("/move_base_simple/goal", 1, &AvoidObs::goalCallback, this);
     wp_cone_sub_ = nh_.subscribe("wp_cone_pose", 1, &AvoidObs::coneCallback, this);
+    found_cone_sub_ = nh_.subscribe("found_cone",1, &AvoidObs::foundConeCallback, this);
+    known_obstacle_sub_ = nh_.subscribe("known_obstacle",1,&AvoidObs::knownObstacleCallback, this);
+    hill_wp_sub_ = nh_.subscribe("hill_wp",1,&AvoidObs::hillWaypointCallback, this);
     nh_p  = ros::NodeHandle("~");
     nh_p.param("plan_rate_hz", plan_rate_, 1.0); //set in avoid_obs.launch
     nh_p.param("map_res_m", map_res_, 0.5);
     nh_p.param("map_size", n_width_, 200);
     nh_p.param("map_size", n_height_, 200);
     nh_p.param("max_range", max_range_, 40.0);
+    nh_p.param("min_hill_range", min_hill_range_, 1.0);
     nh_p.param("plan_range_m",plan_range_, 40.0);
     nh_p.param("clear_decrement",clear_decrement_,-5);
     nh_p.param("fill_increment",fill_increment_,10);
@@ -47,6 +51,10 @@ AvoidObs::AvoidObs()
     nh_p.param("reinflate_cost_thresh", reinflate_cost_thresh_, 30);
     nh_p.param("use_PotFields", use_PotFields_,false);
     nh_p.param("cone_obs_thresh", cone_obs_thresh_, 20);
+    nh_p.param("max_num_known_obstacles", max_num_known_obstacles_, 20);
+    nh_p.param("known_obstacle_time_limit", known_obstacle_time_limit_, 30.0);
+
+    scan_range = max_range_;
 
     ROS_INFO("map_size (n cells): %d", n_width_);
     
@@ -90,14 +98,49 @@ AvoidObs::AvoidObs()
 
 AvoidObs::~AvoidObs(){}
 
+void AvoidObs::knownObstacleCallback(const geometry_msgs::PoseStamped& obs_pose)
+{
+  // TODO: transform known obstacle to odom frame if not already
+  knownObstacleDeq.push_back(obs_pose);
+  //TODO: Consider using boost circular buffer
+  if(knownObstacleDeq.size() > max_num_known_obstacles_)
+  {
+    knownObstacleDeq.pop_front();
+  }
+}
+
+void AvoidObs::hillWaypointCallback(const std_msgs::Int16& msg)
+{
+  if(msg.data == 1)
+  {
+    scan_range = min_hill_range_;
+  }
+  else
+  {
+    scan_range = max_range_;
+  }
+}
+
 void AvoidObs::coneCallback(const geometry_msgs::PoseStamped& data)
 {
     camera_cone_poseStamped = data;
 }
 
+void AvoidObs::foundConeCallback(const std_msgs::Int16& msg)
+{
+  if(msg.data == 0) // need to reset the camera_cone_poseStamped so the just bumped cone now becomes an obstacle again
+  {
+    // TODO: add a bool flag when we bump a cone and update a waypoint to next cone, clear the flag in next coneCallback
+    //  do not check_for_cone_obstacle if this flag is set
+    camera_cone_poseStamped.pose.position.x = 0;
+    camera_cone_poseStamped.pose.position.y = 0;
+  }
+}
+
 bool AvoidObs::check_for_cone_obstacle()
 {
     double sec_since_cone = (ros::Time::now()-camera_cone_poseStamped.header.stamp).toSec();
+    unsigned min_cell_dist = 4*cone_search_n_cells_;
     if(sec_since_cone < 2.0)
     {
         int cost, max_nearby_cost = cone_obs_thresh_;
@@ -111,9 +154,12 @@ bool AvoidObs::check_for_cone_obstacle()
                 if(cost > cone_obs_thresh_ and cost <= 100)
                 {
                     costmap.data[(cy+dy) * n_width_ + (cx+dx)] = 0;
-                    if(cost > max_nearby_cost)
+                    unsigned cell_dist = abs(dx)+abs(dy);
+                    //if(cell_dist <= min_cell_dist)
+                    if(cost >= max_nearby_cost)
                     {
                         max_nearby_cost = cost;
+                        min_cell_dist = cell_dist;
                         obs_cone_poseStamped.header.stamp = ros::Time::now();
                         obs_cone_poseStamped.pose.position.x = map_pose.position.x + (cx+dx)*map_res_ + map_res_/2;
                         obs_cone_poseStamped.pose.position.y = map_pose.position.y + (cy+dy)*map_res_ + map_res_/2;
@@ -296,7 +342,7 @@ void AvoidObs::scanCallback(const sensor_msgs::LaserScan& scan) //use a point cl
 {
     //ROS_INFO("NEW SCAN");
 	// Transform scan to map frame, clear and fill costmap
-    listener.waitForTransform("laser", "odom", ros::Time(0), ros::Duration(10.0));
+    listener.waitForTransform("laser", "odom", scan.header.stamp, ros::Duration(10.0)); // ros::Time(0) causes exceptions
 
 	geometry_msgs::PointStamped laser_point, odom_point;
 	laser_point.header.frame_id = "laser";
@@ -310,7 +356,7 @@ void AvoidObs::scanCallback(const sensor_msgs::LaserScan& scan) //use a point cl
 
 	    //clear map cells
 	    // only clear at range >= 0.5 meters
-        for (double r = 0.5; r < (range - map_res_); r += map_res_)
+        for (double r = 0.5; r < (range - map_res_*2.0); r += map_res_)
         {
             double angle_step = map_res_ / r;
             //clearing as we pass obstacles, try angle_increment/3 vs /2 (reduce clearing fov per laser)
@@ -328,14 +374,14 @@ void AvoidObs::scanCallback(const sensor_msgs::LaserScan& scan) //use a point cl
                 catch (tf::TransformException& ex)
                 {
                     int xa;
-                    //ROS_ERROR("Received an exception trying to transform a point : %s", ex.what());
+                    ROS_ERROR("AvoidObs clear Received an exception trying to transform a point : %s", ex.what());
                 }
 
             }
         }
 
 	    // fill obstacle cells
-	    if(range < max_range_)
+	    if(range < scan_range)
 	    {
 			laser_point.point.x = range*cos(angle) ;
 			laser_point.point.y = range*sin(angle) ;
@@ -350,7 +396,7 @@ void AvoidObs::scanCallback(const sensor_msgs::LaserScan& scan) //use a point cl
 				}
 				catch(tf::TransformException& ex){
 					int xa;
-					//ROS_ERROR("Received an exception trying to transform a point : %s", ex.what());
+					ROS_ERROR("AvoidObs fill Received an exception trying to transform a point : %s", ex.what());
 				}
 			}
 	    }
@@ -398,8 +444,31 @@ void AvoidObs::scanCallback(const sensor_msgs::LaserScan& scan) //use a point cl
 	//update_cell(odom_point.point.x, odom_point.point.y, 100.0);
 
     check_for_cone_obstacle(); //clears obstacles near cone pose estimated from camera
+
+    // ensure costmap has known obstacles
+    check_known_obstacles();
+
     costmap.header.stamp = scan.header.stamp;
     costmap_pub_.publish(costmap);
+}
+
+void AvoidObs::check_known_obstacles()
+{
+  if(knownObstacleDeq.size() > 0)
+  {
+    // check if oldest obstacle has expired
+    if( (ros::Time::now() - knownObstacleDeq[0].header.stamp).toSec() > known_obstacle_time_limit_)
+    {
+      knownObstacleDeq.pop_front();
+    }
+
+    // insert known obstacles into costmap
+    for(unsigned k=0; k<knownObstacleDeq.size(); ++k)
+    {
+      const geometry_msgs::PoseStamped& obs_pose = knownObstacleDeq.at(k);
+      update_cell(obs_pose.pose.position.x, obs_pose.pose.position.y, 100);
+    }
+  }
 }
 
 int main(int argc, char **argv)

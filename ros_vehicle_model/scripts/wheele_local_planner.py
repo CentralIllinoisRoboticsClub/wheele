@@ -21,6 +21,7 @@ class PathController():
         MAX_SPEED = 0.6
         MAX_OMEGA = 2.0
         self.diff_drive_controller = DiffDriveController(MAX_SPEED, MAX_OMEGA)
+        self.diff_drive_controller.update_target_rho(0.5)
         
         x_i = 0.
         y_i = 0.
@@ -38,6 +39,7 @@ class PathController():
         self.tf_listener = tf.TransformListener()
         
         self.found_cone = False
+        self.retreat = False
         
         rospy.init_node('path_controller')
         self.cmd_pub = rospy.Publisher('cmd_vel', Twist, queue_size=1)
@@ -46,19 +48,24 @@ class PathController():
         rospy.Subscriber('/move_base/GlobalPlanner/plan', Path, self.path_callback, queue_size = 1)
         rospy.Subscriber('/scan', LaserScan, self.scan_callback, queue_size = 1)
         rospy.Subscriber('found_cone', Int16, self.found_cone_callback, queue_size = 1)
+        
+        self.retreat_time = rospy.Time.now() # rospy.Time use must be after init_node
     
     def found_cone_callback(self, msg):
         if(msg.data > 0):
             self.found_cone = True
         else:
             self.found_cone = False
+            self.retreat = True
+            self.reverse_flag = True
+            self.retreat_time = rospy.Time.now()
         
     def scan_callback(self, data):
         ranges = data.ranges
-        min_range = min(ranges[7:9])
-        if(not self.found_cone and min_range < 2.0):
+        min_range = min(ranges[6:10])
+        if(not self.found_cone and min_range < 1.0):
             self.reverse_flag = True
-        elif(self.reverse_flag and min_range > 3.0):
+        elif(self.reverse_flag and min_range > 2.0 and (not self.retreat) ):
             self.reverse_flag = False
     
     def odom_callback(self,odom):
@@ -106,10 +113,15 @@ class PathController():
                     ind1 = ind2
                     k += 1
                 
-                step_size_meters = 2.0    
-                wp_step = int(step_size_meters/path_dist * nPose)
-                if(wp_step >= nPose):
+                step_size_meters = 1.0
+                use_full_path = False
+                if(use_full_path):
                     wp_step = 1
+                else:
+                    wp_step = int(step_size_meters/path_dist * nPose)
+                    if(wp_step >= nPose):
+                        wp_step = 1
+                
                 init = wp_step
                 print "path dist: ", path_dist
                 print "wp step: ", wp_step
@@ -159,7 +171,7 @@ class PathController():
             print "wp goal: ", self.goal
             self.goal_reached = False
         else:
-            self.v = 0.
+            self.v = 0.5
             self.w = 0.
             
         if(self.reverse_flag):
@@ -169,8 +181,8 @@ class PathController():
         #PI control for desired linear speed v
         # controller will output an offset command to add to v
         Ks = 2.5
-        Ki = 1.5
-        Kp = 1.5
+        Ki = 0.1
+        Kp = 0.1
         err = self.v - self.vx
         self.cum_err += err
         self.cum_err = min(1.0, self.cum_err)
@@ -178,9 +190,14 @@ class PathController():
         out = Kp*err + Ki*self.cum_err
         
         twist = Twist()
-        twist.linear.x = self.v #Ks*v+out
+        twist.linear.x = self.v + out
         twist.angular.z = self.w
         self.cmd_pub.publish(twist)
+        
+        # manage retreat state
+        if( self.retreat and (rospy.Time.now()-self.retreat_time).to_sec() > 3.0):
+            self.retreat = False
+            self.reverse_flag = False
 
 if __name__ == '__main__':
     try:

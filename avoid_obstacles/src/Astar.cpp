@@ -19,7 +19,8 @@ Astar::Astar():
 		map_y0(0.0),
 		map_res(0.5),
 		NUM_ROWS(0),
-		NUM_COLS(0)
+		NUM_COLS(0),
+		m_map()
 {
     path_pub_ = nh_.advertise<nav_msgs::Path>("path", 1);
     odom_sub_ = nh_.subscribe("odom", 1, &Astar::odomCallback, this);
@@ -60,18 +61,23 @@ void Astar::goalCallback(const geometry_msgs::PoseStamped& data)
 
 void Astar::costmapCallback(const nav_msgs::OccupancyGrid& map)
 {
-    float dx = goal_pose.position.x - bot_pose.position.x;
-    float dy = goal_pose.position.y - bot_pose.position.y;
-    float goal_dist_sqd = dx*dx + dy*dy;
-    if(goal_dist_sqd > 0.25)
-    {
-        path.header.stamp = ros::Time::now();
-        if(get_path(bot_pose, goal_pose, map, path))
-            path_pub_.publish(path);
-        double duration = (ros::Time::now()-path.header.stamp).toSec();
-        if(duration > 0.05)
-            ROS_WARN("Astar took %0.2f sec",duration);
-    }
+  m_map = map;
+}
+
+void Astar::findPath()
+{
+  float dx = goal_pose.position.x - bot_pose.position.x;
+  float dy = goal_pose.position.y - bot_pose.position.y;
+  float goal_dist_sqd = dx*dx + dy*dy;
+  if(goal_dist_sqd > 0.25)
+  {
+      path.header.stamp = ros::Time::now();
+      if(get_path(bot_pose, goal_pose, m_map, path))
+          path_pub_.publish(path);
+      double duration = (ros::Time::now()-path.header.stamp).toSec();
+      if(duration > 0.05)
+          ROS_WARN("Astar took %0.2f sec",duration);
+  }
 }
 
 bool Astar::get_map_indices(float x, float y, int& ix, int& iy)
@@ -176,8 +182,39 @@ bool Astar::get_path(geometry_msgs::Pose pose, geometry_msgs::Pose goal,
 	//    Another option: move within a large radius of the goal (until c2,r2 is near cg,rg)
 	if(is_obs2(map,cg,rg))
 	{
-	  ROS_WARN("Astar won't plan to obstacle goal");
-	  return false;
+	  // step toward bot in 0.5 meter increments until no obstacle goal
+	  bool goal_is_obs = true;
+	  double dx = x_init - xg;
+	  double dy = y_init - yg;
+	  double range = sqrt(dx*dx+dy*dy);
+	  double step_x = dx/range*0.5;
+	  double step_y = dy/range*0.5;
+	  for(int nSteps=1;nSteps<=5;++nSteps)
+	  {
+	    get_map_indices(xg+step_x*nSteps, yg+step_y*nSteps, cg, rg);
+	    if(!is_obs2(map,cg,rg))
+	    {
+	      goal_is_obs = false;
+	      break;
+	    }
+	  }
+	  if(goal_is_obs) // step away from bot if still no clear cell found
+	  {
+	    for(int nSteps=1;nSteps<=5;++nSteps)
+	      {
+	        get_map_indices(xg-step_x*nSteps, yg-step_y*nSteps, cg, rg);
+	        if(!is_obs2(map,cg,rg))
+	        {
+	          goal_is_obs = false;
+	          break;
+	        }
+	      }
+	  }
+	  if(goal_is_obs)
+	  {
+      ROS_WARN("Astar won't plan to obstacle goal");
+      return false;
+	  }
 	}
 
 	float x1,y1,g1,f2,g2,h2,DIST,x2,y2,cost;
@@ -424,15 +461,16 @@ int main(int argc, char **argv)
 
     Astar astar;
     ROS_INFO("Starting A-star path planning");
-    ros::spin();
-    /*int loop_hz = astar.get_plan_rate();
+    //ros::spin();
+    double loop_hz = astar.get_plan_rate();
     ros::Rate rate(loop_hz);
 
     while(ros::ok())
     {
+        astar.findPath();
         ros::spinOnce();
         rate.sleep();
     }
-    */
+
     return 0;
 }

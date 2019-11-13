@@ -1,0 +1,76 @@
+﻿<launch>
+  <node pkg="leddar_can" type = "leddar_stream" name = "leddar_scan" output="screen">
+    <param name="max_stream_flag" value = "false" type = "bool" />
+    <param name="rate_hz" value="10" type="int" />
+    <param name="min_amp_slope" value="1.5" />
+    <param name="min_amp_offset" value="15.0" />
+  </node>
+  
+  <node pkg="socketcan_bridge" type = "socketcan_bridge_node" name = "can_bridge" />
+  <node pkg="can2ros_wheele" type = "can2ros.py" name = "can2odom" output="screen" />
+  <node pkg="ros_vehicle_model" type="ros2can" name="ros2can" output="screen" />
+
+  <node pkg="imu_can" type = "imu_stream" name = "imu_stream" />
+  <node name="nmea_serial_driver" pkg="nmea_navsat_driver" type="nmea_serial_driver" args="_port:=/dev/GPS_ultimate _baud:=9600 _frame_id:=gps"/>
+  <node pkg="gps_modular" type="gps_transform.py" name="gps_transform" output="screen"/>
+
+  
+  <node pkg="avoid_obstacles" type="nav_states" name="nav_states" output="screen">
+    <remap from="/cam_cone_pose" to="/raw_cone_pose"/>
+    <rosparam>
+      plan_rate_hz: 10.0
+      use_PotFields: false
+      close_cone_to_bot_dist: 11.0
+      valid_cone_to_wp_dist: 11.0
+      near_path_dist: 1.0
+      valid_end_of_path_dist: 5.0
+      desired_speed: 1.0
+      slow_speed: 0.4
+      max_omega: 2.0
+      max_fwd_heading_error_deg: 180.0
+      search_time: 2.0
+      search_omega: 0.8
+      reverse_time: 1.0
+      cmd_control_ver: 0
+      scan_collision_db_limit: 4
+      scan_collision_range: 0.5
+      cone_detect_db_limit: 1
+      cmd_speed_filter_factor: 0.5
+      report_bumped_obstacles: true
+      max_camera_search_time: 30.0
+      slow_approach_distance: 2.0
+      reverse_speed: 0.8
+      bump_db_limit: 2
+      path_step_size: 3
+
+      waypoints_are_in_map_frame: true
+    </rosparam>
+
+    <rosparam param="x_coords">[10,  0,  25, 27]</rosparam>
+    <rosparam param="y_coords">[0, -15, -15, 30]</rosparam>
+    <rosparam param="waypoint_types">[0, 1, 1, 1]</rosparam>
+    <rosparam param="hill_waypoint_list">[0, 0, 0, 0]</rosparam>
+  </node>
+
+  <node pkg="cv_camera" type="cv_camera_node" name="camera">
+    <rosparam>
+      device_id: 0
+      image_width: 640
+      image_height: 480
+      frame_id: camera
+      rate: 15
+      image/compressed/jpeg_quality: 20
+    </rosparam>
+    <!-- <param name="image/compressed/jpeg_quality" type="int" value="50"/> -->
+  </node>
+
+  <include file="$(find avoid_obstacles)/launch/avoid_obstacles.launch" />
+
+  <!-- <node pkg="avoid_obstacles" type="waypoints_manager.py" name="waypoints_manager" output="screen"/> -->
+
+  <node pkg="cone_finder" type="cone_finder.py" name="cone_finder" output="screen">
+    <remap from="/camera/image_raw" to="/camera/image_raw"/>
+    <param name="hue_max" value="12" type="int" />
+  </node>
+
+</launch>

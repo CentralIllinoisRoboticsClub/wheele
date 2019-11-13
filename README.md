@@ -59,10 +59,11 @@ See camera_test.launch in ros_vehicle_model/launch for camera setup.
 ### imu_stream (ImuCAN.cpp) in imu_can
 Publishes `/imu`, `/mag_imu`, `/magXYZ`
 
-### gps_transform.py in https://github.com/coderkarl/wheele_helpers/tree/master/gps_modular
+### gps_transform.py in https://github.com/coderkarl/ros_misc/blob/master/gps_modular/scripts/gps_transform.py
 Subscribes to `/fix`  
-publishes `/odom_gps`, sends odom base_link_gps tf  
-TODO: the tf should be between map andn base_link_gps  
+publishes `/odom_gps`, sends map base_link_gps tf
+publishes `gps_pose`, (x,y) in meters in map frame w.r.t. initial lat, lon readings
+TODO: verify the tf is between map andn base_link_gps  
 Put gps_transform.py in a wheele package
 
 ### NMEA serial driver

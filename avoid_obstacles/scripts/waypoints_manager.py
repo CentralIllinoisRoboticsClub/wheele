@@ -17,6 +17,9 @@ class WaypointManager():
     def __init__(self):        
         self.tf_listener = tf.TransformListener()
         
+        self.near_goal_distance_threshold = 3.0
+        self.cone_transition = False
+        
         rospy.init_node('waypoint_manager')
         rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.clicked_goal_callback, queue_size = 2)
         rospy.Subscriber('raw_cone_pose', PoseStamped, self.raw_cone_callback, queue_size=2)
@@ -31,6 +34,7 @@ class WaypointManager():
         print('Initializing Waypoint Manager.')
 
         self.bump_switch = 0
+        self.found_cone = False
 
         self.botx_odom = 0.0
         self.boty_odom = 0.0
@@ -61,8 +65,9 @@ class WaypointManager():
         #x,y +x=east, +y=north
         waypoints  = np.array([
           [0, 0],  #lon, lat start
-          [0.5*meters2deg, 3.0*meters2deg],  #first cone
-          [5.0*meters2deg, 0.0] ])  #second cone
+          [4.0*meters2deg, -2.0*meters2deg],  #first cone
+          [9.0*meters2deg, 0.0*meters2deg],  #second cone
+          [9.0*meters2deg, 6.0*meters2deg] ])  #third cone
            
         self.num_waypoints = len(waypoints)
         
@@ -76,26 +81,31 @@ class WaypointManager():
         self.wp_k = 1
         time.sleep(1.0)
         self.update_waypoint()
+        self.touch_cone_time = 0
         
 
     def update_waypoint(self):
         print "Update Waypoint"
-        if(self.wp_k < self.num_waypoints):
-            self.map_wp.header.stamp = rospy.Time.now()
-            self.map_wp.pose.position.x = self.wp_map[self.wp_k,0]
-            self.map_wp.pose.position.y = self.wp_map[self.wp_k,1]
-            print "map_wp"
-            print self.map_wp
-            p_in_odom = self.xy_in_odom(self.map_wp)
-            print "p in odom"
-            print p_in_odom
-            if(p_in_odom):
-                self.cur_wp = p_in_odom
-                self.wp_k += 1
-                print "wp_goal published"
-                self.wp_pub.publish(self.cur_wp)
+        #if(self.wp_k < self.num_waypoints):
+        self.map_wp.header.stamp = rospy.Time.now()
+        self.map_wp.pose.position.x = self.wp_map[self.wp_k,0]
+        self.map_wp.pose.position.y = self.wp_map[self.wp_k,1]
+        print "map_wp"
+        print self.map_wp
+        p_in_odom = self.xy_in_odom(self.map_wp)
+        print "p in odom"
+        print p_in_odom
+        if(p_in_odom):
+            self.cur_wp = p_in_odom
+            self.wp_k += 1
+            if(self.wp_k == self.num_waypoints):
+                self.wp_k = 1
+            print "wp_goal published"
+            self.wp_pub.publish(self.cur_wp)
+            self.wp_cone_pub.publish(p_in_odom) # publish this once to avoid obs so it will clear the costmap at the initial goal, until it finds an updated goal from the camera
         
     def bump_switch_callback(self,sw):
+        #if(not self.cone_transition): # covered in main, we may want to know when the bump_switch is released
         self.bump_switch = sw.data
 
     def odom_callback(self,odom):
@@ -115,18 +125,23 @@ class WaypointManager():
     def raw_cone_callback(self, data):
         #print "Raw Cone Callback"
         p_in_map = self.xy_in_map(data)
-        if(p_in_map and (self.distance_between_poses(p_in_map, self.map_wp) < 5)):
+        if(p_in_map and (self.distance_between_poses(p_in_map, self.map_wp) < self.near_goal_distance_threshold)):
             p_in_odom = self.xy_in_odom(data)
             if(p_in_odom):
                 self.wp_cone_pub.publish(p_in_odom)
+                # WARNING, THIS CAN BE PUBLISHED JUST BEFORE update_waypoint updates self.map_wp
+                #    THIS WILL CAUSE A FUTURE obs_cone_callback AFTER update_waypoint, and self.cur_wp will be reverted
     
     def obs_cone_callback(self, data):
-        self.cur_wp = data
-        self.wp_pub.publish(self.cur_wp)
-        msg = Int16()
-        msg.data = 1
-        self.found_cone_pub.publish(msg)
-        #print("Waypoint Manager Received nearest obstacle to cone")
+        # ENSURE prev cone pose does not revert self.cur_wp if a raw cone pose was sent to avoid obs just before update_waypoint
+        if(not self.cone_transition and self.distance_between_poses(data, self.cur_wp) < self.near_goal_distance_threshold):
+            self.cur_wp = data
+            self.wp_pub.publish(self.cur_wp)
+            msg = Int16()
+            msg.data = 1
+            self.found_cone_pub.publish(msg)
+            self.found_cone = True
+            #print("Waypoint Manager Received nearest obstacle to cone")
     
     def distance_between_poses(self, pose1, pose2):
         dx = pose1.pose.position.x - pose2.pose.position.x
@@ -155,7 +170,7 @@ class WaypointManager():
             self.tf_listener.waitForTransform("map", src_frame, rospy.Time.now(), rospy.Duration(1.0))
             p_in_map = self.tf_listener.transformPose("map", poseStamped)
         except:
-            rospy.logwarn("Error converting to mao frame")
+            rospy.logwarn("Error converting to map frame")
             p_in_map = None
         
         return p_in_map
@@ -167,11 +182,22 @@ if __name__ == '__main__':
 
         r = rospy.Rate(50.0)
         while not rospy.is_shutdown():
-            dist = wp_man.distance_between_poses(wp_man.cur_wp, wp_man.bot_pose_odom)
-            if (wp_man.bump_switch and dist < 0.5):
-                print dist
-                print wp_man.bump_switch
-                wp_man.update_waypoint()
+            if(wp_man.cone_transition):
+                if( (rospy.Time.now() - wp_man.touch_cone_time).to_sec() > 5.0):
+                    wp_man.cone_transition = False
+            else:
+                dist = wp_man.distance_between_poses(wp_man.cur_wp, wp_man.bot_pose_odom)
+                if ( (wp_man.bump_switch and dist < 1.0) or (dist < 1.0 and not wp_man.found_cone) or (dist < 0.7 and wp_man.found_cone) ):
+                    wp_man.cone_transition = True
+                    wp_man.touch_cone_time = rospy.Time.now()
+                    print dist
+                    print wp_man.bump_switch
+                    msg = Int16()
+                    msg.data = 0
+                    wp_man.found_cone_pub.publish(msg) #Now wheele_local_planner will see current cone as obstacle and back up
+                    wp_man.found_cone = False
+                    wp_man.update_waypoint()
+            
             r.sleep()
             
     except rospy.ROSInterruptException:

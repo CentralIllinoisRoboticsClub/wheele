@@ -24,7 +24,9 @@ class CANConverter():
         self.heading_init_count = 0
         self.mag_heading_deg = 0
         self.odom_heading_deg = 0
+        self.use_compass_heading = False 
         self.map_bc = tf.TransformBroadcaster()
+        self.ref_bc = tf.TransformBroadcaster()
         
         self.tf_listener = tf.TransformListener()
         
@@ -38,10 +40,16 @@ class CANConverter():
         self.auto_raw_pub = rospy.Publisher('auto_raw', Int16, queue_size = 1)
         self.raw_cmd_pub = rospy.Publisher('raw_cmd_py', Vector3, queue_size = 10)
         self.bump_switch_pub = rospy.Publisher('bump_switch', Int16, queue_size = 1)
+        self.map_to_odom_update_pub = rospy.Publisher('map_to_odom_update', Int16, queue_size = 1)
         self.raw_cmd = Vector3()
         self.cmd = SpeedCurve()
         self.cmd.speed = 0.0
         self.cmd.curvature = 0.0
+        
+        self.gps_update_distance = 10.0
+        self.ref_update_distance = 30.0
+        self.filt_weight_theta = 0.03
+        self.filt_weight_trans = 0.03
         
         self.bad_raw_cmd_count = 0
         
@@ -93,23 +101,121 @@ class CANConverter():
         self.bot_deg = 0
         self.botx = 0
         self.boty = 0
+        
+        self.refx = 0
+        self.refy = 0
+        self.refx_prev = 0
+        self.refy_prev = 0
+        
+        self.odom_x_in_map = 0
+        self.odom_y_in_map = 0
+        self.map_to_odom_updated = False
 
     def gps_callback(self,data):
-        x = data.vector.x
-        y = data.vector.y
-        gps_theta = math.atan2(y,x)
+        # TODO: Make gps pose poseWithCovariance and update covariance in gps_transform based on /fix and/or other nmea data
+        gpsx = data.vector.x
+        gpsy = data.vector.y
+        
+        bot_in_map_valid = False
+        use_prev_ref = False
+        
         try:
             (trans,quat) = self.tf_listener.lookupTransform('/map', '/base_link', rospy.Time(0))
+            bot_in_map_valid = True
+        except:
+            print "can2ros gps_callback, transform lookup ERROR. map to base link"
+            
+        if bot_in_map_valid:
             xb = trans[0]
             yb = trans[1]
-            if(self.botx**2 + self.boty**2 > 20.**2):
-                print "Updating odom heading based on gps"
-                bot_theta = math.atan2(yb,xb)
+            dist_to_ref_sqd = (xb-self.refx)**2 + (yb-self.refy)**2
+            dist_to_ref_prev_sqd = (xb-self.refx_prev)**2 + (yb-self.refy_prev)**2
+            if(dist_to_ref_prev_sqd > dist_to_ref_sqd):
+                refx_far = self.refx_prev
+                refy_far = self.refy_prev
+                far_dist_to_ref_sqd = dist_to_ref_prev_sqd
+                use_prev_ref = True
+            else:
+                refx_far = self.refx
+                refy_far = self.refy
+                far_dist_to_ref_sqd = dist_to_ref_sqd
+                
+            filt_dtheta = 0.0
+            odom_dx = 0.0
+            odom_dy = 0.0
+                
+            if( far_dist_to_ref_sqd > self.gps_update_distance**2): # TODO: parameter, update_distance_map_to_odom
+                print "Updating map to odom based on gps"
+                gps_theta = math.atan2(gpsy-refy_far, gpsx-refx_far)
+                bot_theta = math.atan2(yb-refy_far, xb-refx_far)
                 diff_theta = gps_theta - bot_theta
-                self.odom_heading_deg += diff_theta*180./3.14
-        except:
-            aa=0
+                if(diff_theta > 3.14):
+                    diff_theta = diff_theta - 2*3.14
+                elif(diff_theta <= -3.14):
+                    diff_theta = diff_theta + 2*3.14
+                
+                filt_dtheta = diff_theta * self.filt_weight_theta
+                self.odom_heading_deg += filt_dtheta*180./3.14
+                self.odom_x_in_map, self.odom_y_in_map = self.rotate_about_ref(self.odom_x_in_map, self.odom_y_in_map, filt_dtheta, use_prev_ref)
+                
+                # rotate bot in map about current reference point
+                temp_xb, temp_yb = self.rotate_about_ref(xb, yb, diff_theta, use_prev_ref) # Important to temp rotate by full diff_theta, test in octave
+                # compare new bot in map to gps in map and update
+                odom_dx = (gpsx - temp_xb) * self.filt_weight_trans # TODO: parameter, update_odom_trans_gps_weight
+                odom_dy = (gpsy - temp_yb) * self.filt_weight_trans # TODO: parameter, update_odom_trans_gps_weight
+                self.odom_x_in_map += odom_dx
+                self.odom_y_in_map += odom_dy
+            if(dist_to_ref_sqd > self.ref_update_distance**2):
+                # reset reference point
+                new_xb, new_yb = self.rotate_about_ref(xb, yb, filt_dtheta, use_prev_ref)
+                self.refx_prev = self.refx
+                self.refy_prev = self.refy
+                self.refx = new_xb + odom_dx
+                self.refy = new_yb + odom_dy
+                self.map_to_odom_updated = True
+            
+    def rotate_about_ref(self, x, y, theta, use_prev_ref_flag):
+        if(use_prev_ref_flag):
+            nx = self.refx_prev + math.cos(theta)*(x-self.refx_prev) - math.sin(theta)*(y-self.refy_prev)
+            ny = self.refy_prev + math.sin(theta)*(x-self.refx_prev) + math.cos(theta)*(y-self.refy_prev)
+        else:
+            nx = self.refx + math.cos(theta)*(x-self.refx) - math.sin(theta)*(y-self.refy)
+            ny = self.refy + math.sin(theta)*(x-self.refx) + math.cos(theta)*(y-self.refy)
+        return nx, ny
         
+    def update_map_to_odom(self):
+        # map to odom
+        quat = tf.transformations.quaternion_from_euler(0, 0, self.odom_heading_deg*3.1416/180.0)
+        self.map_bc.sendTransform(
+        (self.odom_x_in_map, self.odom_y_in_map, 0.),
+        quat,
+        rospy.Time.now(),
+        "odom",
+        "map"
+        )
+        
+        if(self.map_to_odom_updated):
+            raw_sig = Int16()
+            raw_sig.data = 1
+            self.map_to_odom_update_pub.publish(raw_sig)
+            self.map_to_odom_updated = False
+        
+        # map to ref
+        quat = tf.transformations.quaternion_from_euler(0, 0, 0.0)
+        self.ref_bc.sendTransform(
+        (self.refx, self.refy, 0.),
+        quat,
+        rospy.Time.now(),
+        "ref",
+        "map"
+        )
+        self.ref_bc.sendTransform(
+        (self.refx_prev, self.refy_prev, 0.),
+        quat,
+        rospy.Time.now(),
+        "ref_prev",
+        "map"
+        )
 
     def magIMU_callback(self, data):
         quaternion = (data.orientation.x,
@@ -118,22 +224,14 @@ class CANConverter():
             data.orientation.w)
         [roll,pitch,yaw] = tf.transformations.euler_from_quaternion(quaternion)
         self.mag_heading_deg = yaw*180./3.14159
-        if(self.heading_init_count < 10):
+        if(self.heading_init_count < 10 and self.use_compass_heading):
             self.heading_init_count += 1
             if(self.heading_init_count == 1):
                 self.odom_heading_deg = self.mag_heading_deg
             else:
                 self.odom_heading_deg = (self.odom_heading_deg*(self.heading_init_count-1) + self.mag_heading_deg)/self.heading_init_count
                 print "init odom deg: ", self.odom_heading_deg
-        # map to odom
-        quat = tf.transformations.quaternion_from_euler(0, 0, self.odom_heading_deg*3.1416/180.0)
-        self.map_bc.sendTransform(
-        (0, 0, 0.),
-        quat,
-        data.header.stamp,
-        "odom",
-        "map"
-        )
+
     def accelIMU_callback(self, data):
         accx = data.linear_acceleration.x
         accy = data.linear_acceleration.y
@@ -367,6 +465,7 @@ if __name__ == '__main__':
             can_conv.update_CAN()
             can_conv.update_cmd()
             can_conv.update_odom()
+            can_conv.update_map_to_odom()
             r.sleep()
             
     except rospy.ROSInterruptException:
