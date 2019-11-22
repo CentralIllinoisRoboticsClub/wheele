@@ -1,3 +1,5 @@
+// Copyright 2019 coderkarl. Subject to the BSD license.
+
 #ifndef NavStates_H
 #define NavStates_H
 

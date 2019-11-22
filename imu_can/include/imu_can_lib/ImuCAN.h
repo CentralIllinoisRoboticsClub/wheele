@@ -1,3 +1,5 @@
+// Copyright 2019 coderkarl. Subject to the BSD license.
+
 #ifndef ImuCAN_H
 #define ImuCAN_H
 

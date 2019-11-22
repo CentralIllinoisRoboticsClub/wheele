@@ -1,3 +1,5 @@
+// Copyright 2019 coderkarl. Subject to the BSD license.
+
 #include "ROS2CAN.h"
 #include <math.h>
 

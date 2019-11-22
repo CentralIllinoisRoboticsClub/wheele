@@ -36,7 +36,11 @@ Subscribes to `/costmap`, which calls get_path(), publishes `/path`
 get_path() can return false and not publish `/path` for multiple reasons:  
 No solution found, goal is in obstacle cell
 
-### waypoints_manager.py in avoid_obstacles
+### nav_states (NavStates.cpp) in avoid_obstacles
+A cleaner and improved implementation of waypoints_manager.py and wheele_local_planner.py  
+See below. Note topic /found_cone is now obsolete.
+
+### waypoints_manager.py in avoid_obstacles (obsolete, replaced by NavStates.cpp)
 Publishes `/wp_goal` initially based on entered lat lon coordinates  
 Subscribes to rviz 2d nav goal `/move_base_simple/goal`, publishes it on `/wp_goal`  
 Subscribes to `/raw_cone_pose` from camera, publishes it on `/wp_cone_pose` which is used by avoid_obs to send back `/obs_cone_pose`  
@@ -44,7 +48,7 @@ Subscribes to `/obs_cone_pose` publishes it on `/wp_goal`, publishes `/found_con
 `/found_cone` will allow wheele to drive thru obstacles (it thinks they are the cone)  
 TODO: rename wp_pub publisher to wp_goal to help us follow the data flow
 
-### wheele_local_planner.py in ros_vehicle_model
+### wheele_local_planner.py in ros_vehicle_model (obsolete, replaced by NavStates.cpp)
 Subscribes to `/path`, publishes `/cmd_vel`  
 Subscribes to `/found_cone`  
 Subscribes to `/scan`, reverses when close to obstacles in front IF NOT `/found_cone`  

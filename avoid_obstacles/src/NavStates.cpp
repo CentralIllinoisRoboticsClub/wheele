@@ -1,3 +1,5 @@
+// Copyright 2019 coderkarl. Subject to the BSD license.
+
 #include "NavStates.h"
 #include "AvoidObsCommon.h" // get_yaw()
 #include <geometry_msgs/PointStamped.h>

@@ -1,3 +1,5 @@
+// Copyright 2019 coderkarl. Subject to the BSD license.
+
 #include "Astar.h"
 #include "AvoidObsCommon.h"
 #include <geometry_msgs/PoseStamped.h>

@@ -1,3 +1,5 @@
+// Copyright 2019 coderkarl. Subject to the BSD license.
+
 #include "ImuCAN.h"
 //#include <tf2/LinearMath/Quaternion.h>
 #include <tf/transform_datatypes.h>

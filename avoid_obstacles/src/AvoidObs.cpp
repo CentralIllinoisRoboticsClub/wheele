@@ -1,3 +1,5 @@
+// Copyright 2019 coderkarl. Subject to the BSD license.
+
 #include "AvoidObs.h"
 #include "AvoidObsCommon.h"
 #include <geometry_msgs/PointStamped.h>

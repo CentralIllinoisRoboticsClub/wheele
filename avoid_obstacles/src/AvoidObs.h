@@ -1,3 +1,5 @@
+// Copyright 2019 coderkarl. Subject to the BSD license.
+
 #ifndef AvoidObs_H
 #define AvoidObs_H
 

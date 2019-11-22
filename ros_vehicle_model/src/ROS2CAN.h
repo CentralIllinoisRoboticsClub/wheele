@@ -1,3 +1,5 @@
+// Copyright 2019 coderkarl. Subject to the BSD license.
+
 #ifndef ROS2CAN_H
 #define ROS2CAN_H
 
