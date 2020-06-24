@@ -1,6 +1,6 @@
 // Copyright 2019 coderkarl. Subject to the BSD license.
 
-#include "PotentialFields.h"
+#include "avoid_obstacles/PotentialFields.h"
 #include <cmath>
 
 PotentialFields::PotentialFields() :

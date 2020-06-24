@@ -21,12 +21,12 @@
    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
    SOFTWARE.
 */
-#include "RPMSerialInterface.h"
+#include "ros_micromaestro/RPMSerialInterface.h"
 
 #ifdef _WIN32
-	#include "RPMSerialInterfaceWindows.h"
+	#include "ros_micromaestro/RPMSerialInterfaceWindows.h"
 #else
-	#include "RPMSerialInterfacePOSIX.h"
+	#include "ros_micromaestro/RPMSerialInterfacePOSIX.h"
 #endif
 
 namespace RPM

@@ -1,7 +1,7 @@
 // Copyright 2019 coderkarl. Subject to the BSD license.
 
-#include "AvoidObs.h"
-#include "AvoidObsCommon.h"
+#include "avoid_obstacles/AvoidObs.h"
+#include "avoid_obstacles/AvoidObsCommon.h"
 #include <geometry_msgs/PointStamped.h>
 #include <math.h>
 #include <boost/math/special_functions/round.hpp>

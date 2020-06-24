@@ -1,4 +1,4 @@
-#include "Servo.hpp"
+#include "ros_micromaestro/Servo.hpp"
 using namespace CIRC;
 
 // Command to populate the servo class with 

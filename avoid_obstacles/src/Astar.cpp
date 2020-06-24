@@ -1,7 +1,8 @@
 // Copyright 2019 coderkarl. Subject to the BSD license.
 
-#include "Astar.h"
-#include "AvoidObsCommon.h"
+#include "avoid_obstacles/Astar.h"
+#include "avoid_obstacles/AvoidObsCommon.h"
+
 #include <geometry_msgs/PoseStamped.h>
 #include <tf/transform_datatypes.h>
 #include <cstdlib>

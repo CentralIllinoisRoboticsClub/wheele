@@ -1,6 +1,6 @@
 // Copyright 2019 coderkarl. Subject to the BSD license.
 
-#include "ROS2CAN.h"
+#include "ros_vehicle_model/ROS2CAN.h"
 #include <math.h>
 
 #define CMD_VEL_CAN_ID 0x301
