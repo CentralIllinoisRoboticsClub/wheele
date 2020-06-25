@@ -399,7 +399,7 @@ void NavStates::scanCallback(const sensor_msgs::LaserScan& scan) //use a point c
 
   m_close_to_obs = close_obs_range < params.slow_approach_distance;
 
-  if(close_count > 2) // TODO: Parameter, how many lasers in one scan need to see an obstacle
+  if(close_count > 0) // TODO: Parameter, how many lasers in one scan need to see an obstacle
   {
     ++m_scan_collision_db_count;
     if(m_scan_collision_db_count >= params.scan_collision_db_limit)

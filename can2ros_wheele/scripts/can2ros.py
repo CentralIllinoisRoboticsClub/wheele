@@ -1,6 +1,5 @@
-# Copyright 2019 coderkarl. Subject to the BSD license.
-
 #!/usr/bin/env python
+# Copyright 2019 coderkarl. Subject to the BSD license.
 
 import rospy, math
 import numpy as np
