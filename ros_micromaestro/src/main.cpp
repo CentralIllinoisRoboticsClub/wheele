@@ -1,4 +1,4 @@
-#include "MicroMaestro.hpp"
+#include "ros_micromaestro/MicroMaestro.hpp"
 //#include <iostream>
 //#include <unistd.h>
 //#include <signal.h>

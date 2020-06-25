@@ -45,8 +45,8 @@ catkin_package(
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 ## IF I MOVE MicroMaestro.hpp TO SIMPLY /include AND COMMENT THE NEXT LINE, BUILD CANNOT FIND THE .hpp
-include_directories(include include/lib)
 include_directories(
+  include
   ${catkin_INCLUDE_DIRS}
 )
 

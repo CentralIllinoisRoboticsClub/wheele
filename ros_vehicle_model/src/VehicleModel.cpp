@@ -1,4 +1,4 @@
-#include "VehicleModel.hpp"
+#include "ros_vehicle_model/VehicleModel.hpp"
 
 using namespace std;
 using namespace CIRC;

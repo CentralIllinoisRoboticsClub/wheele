@@ -21,7 +21,7 @@
    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
    SOFTWARE.
 */
-#include "RPMSerialInterfacePOSIX.h"
+#include "ros_micromaestro/RPMSerialInterfacePOSIX.h"
 
 #include <fcntl.h>
 #include <unistd.h>

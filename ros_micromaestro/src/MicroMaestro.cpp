@@ -1,4 +1,4 @@
-#include "MicroMaestro.hpp"
+#include "ros_micromaestro/MicroMaestro.hpp"
 
 using namespace std;
 using namespace CIRC;
