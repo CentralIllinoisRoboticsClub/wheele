@@ -7,7 +7,7 @@ jobs:
     runs-on: ubuntu-latest
 
     container:
-      image: ros:kinetic-robot
+      image: ros:kinetic-perception
 
     defaults:
       run:
