@@ -19,4 +19,5 @@
   <depend>rospy</depend>
   <depend>sensor_msgs</depend>
   <depend>std_msgs</depend>
+  <depend>tf_conversions</depend>
 </package>
