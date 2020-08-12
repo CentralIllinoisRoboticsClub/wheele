@@ -23,6 +23,9 @@
   <node pkg="imu_can" type = "imu_stream" name = "imu_stream" />
   <node name="nmea_serial_driver" pkg="nmea_navsat_driver" type="nmea_serial_driver" args="_port:=/dev/GPS_ultimate _baud:=9600 _frame_id:=gps"/>
   <node pkg="gps_modular" type="gps_transform.py" name="gps_transform" output="screen"/>
+  <node pkg="robot_localization" type"ekf_localization_node" name="ekf_se" clear_params="true">
+    <param command="load" file="$(find ros_vehicle_model)/params/ekf_template.yaml" />
+  </node>
 
   <!-- <include file="$(find nav_sim)/launch/move_base_nav.launch" /> -->
 
