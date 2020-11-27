@@ -1,0 +1,19 @@
+#!/bin/bash
+##################################################
+# roslaunch_wheele:
+#   set username below
+#   install to /usr/local/sbin/roslaunch_wheele
+#   sudo chmod +x /usr/local/sbin/roslaunch_wheele
+##################################################
+username=pi
+
+source /home/$username/catkin_ws/devel/setup.bash
+export ROS_HOME=/home/$username/.ros
+
+# launch wheele
+roslaunch ros_vehicle_model wheele_master.launch &
+
+# wait for command to complete
+# note: '$!': process ID of most recent background pipeline (e.g. roslaunch)
+PID=$!
+wait “$PID”
