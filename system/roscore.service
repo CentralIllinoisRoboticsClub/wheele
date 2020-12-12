@@ -10,7 +10,7 @@ After = NetworkManager.service time-sync.target
 
 [Service]
 Type = forking
-User = pi
+User = $USER
 
 # Start roscore as a fork and then wait for the tcp port to be opened
 # —————————————————————----------------------------------------------
@@ -20,7 +20,7 @@ User = pi
 # non-forked shell wait until it can connect to the tcp opened by
 # roscore, and then exit, preventing conflicts with dependant services
 # Reference: https://blog.roverrobotics.com/how-to-run-ros-on-startup-bootup/
-ExecStart = /bin/bash -c "source /opt/ros/kinetic/setup.bash; roscore & while ! echo exit | nc localhost 11311 > /dev/null; do sleep 1; done"
+ExecStart = /bin/bash -c "source /opt/ros/$DISTRO/setup.bash; roscore & while ! echo exit | nc localhost 11311 > /dev/null; do sleep 1; done"
 
 [Install]
 WantedBy = multi-user.target

@@ -5,7 +5,7 @@
 #   install to /usr/local/sbin/roslaunch_wheele
 #   sudo chmod +x /usr/local/sbin/roslaunch_wheele
 ##################################################
-username=pi
+username=$USER
 
 source /home/$username/catkin_ws/devel/setup.bash
 export ROS_HOME=/home/$username/.ros
