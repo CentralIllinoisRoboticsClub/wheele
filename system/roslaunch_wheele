@@ -11,7 +11,7 @@ source /home/$username/catkin_ws/devel/setup.bash
 export ROS_HOME=/home/$username/.ros
 
 # launch wheele
-roslaunch avoid_obstacles nav_states_master.launch autolaunch:=true &
+roslaunch avoid_obstacles nav_states_master.launch &
 
 # wait for command to complete
 # note: '$!': process ID of most recent background pipeline (e.g. roslaunch)
