@@ -1,0 +1,26 @@
+############################################
+# roscore.service
+#   systemd unit configuration file
+#   set User name in [Service] section
+#   install to /etc/systemd/system/roscore.service
+############################################
+[Unit]
+Description = Robot Operating System
+After = NetworkManager.service time-sync.target
+
+[Service]
+Type = forking
+User = $USER
+
+# Start roscore as a fork and then wait for the tcp port to be opened
+# —————————————————————----------------------------------------------
+# Source all the environment variables, start roscore in a fork
+# Since the service type is forking, systemd doesn’t mark it as
+# ‘started’ until the original process exits, so we have the
+# non-forked shell wait until it can connect to the tcp opened by
+# roscore, and then exit, preventing conflicts with dependant services
+# Reference: https://blog.roverrobotics.com/how-to-run-ros-on-startup-bootup/
+ExecStart = /bin/bash -c "source /opt/ros/$DISTRO/setup.bash; roscore & while ! echo exit | nc localhost 11311 > /dev/null; do sleep 1; done"
+
+[Install]
+WantedBy = multi-user.target

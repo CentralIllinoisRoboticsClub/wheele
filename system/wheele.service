@@ -1,0 +1,19 @@
+############################################
+# wheele.service
+#   systemd unit configuration file
+#   set User name in [Service] section
+#   install to /etc/systemd/system/wheele.service
+############################################
+[Unit]
+Description = WheelE Robot Platform
+Requires =  roscore.service
+PartOf = roscore.service
+After = NetworkManager.service time-sync.target roscore.service
+
+[Service]
+Type = simple
+User = $USER
+ExecStart = /usr/local/sbin/roslaunch_wheele
+
+[Install]
+WantedBy = multi-user.target
