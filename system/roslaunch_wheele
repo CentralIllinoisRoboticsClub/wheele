@@ -13,6 +13,9 @@ export ROS_HOME=/home/$username/.ros
 # launch wheele
 roslaunch avoid_obstacles nav_states_master.launch &
 
+# wait for PID to become available
+wait 3.0
+
 # wait for command to complete
 # note: '$!': process ID of most recent background pipeline (e.g. roslaunch)
 PID=$!
