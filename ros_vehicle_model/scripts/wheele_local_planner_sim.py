@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from __future__ import print_function
 import rospy, math
 import numpy as np
 from geometry_msgs.msg import Twist
@@ -39,7 +40,6 @@ class PathController():
         
         self.found_cone = False
         
-        rospy.init_node('path_controller')
         self.cmd_pub = rospy.Publisher('cmd_vel', Twist, queue_size=1)
         #rospy.Subscriber('cmd_vel', Twist, self.drive_callback, queue_size=1)
         rospy.Subscriber('odom', Odometry, self.odom_callback, queue_size = 1)
@@ -101,7 +101,7 @@ class PathController():
                     dy = poses[ind2].pose.position.y - poses[ind1].pose.position.y
                     path_dist += np.sqrt(dx**2 + dy**2)
                     if(done_flag):
-                        print "reached final point for path_dist"
+                        print("reached final point for path_dist")
                         break
                     ind1 = ind2
                     k += 1
@@ -111,8 +111,8 @@ class PathController():
                 if(wp_step >= nPose):
                     wp_step = 1
                 init = wp_step
-                print "path dist: ", path_dist
-                print "wp step: ", wp_step
+                print("path dist: ", path_dist)
+                print("wp step: ", wp_step)
             for k in xrange(init,nPose,wp_step):
                 wp[0] = poses[k].pose.position.x
                 wp[1] = poses[k].pose.position.y
@@ -122,9 +122,9 @@ class PathController():
                 wp[1] = poses[-1].pose.position.y
                 self.waypoints.append(wp.copy())
             
-            #print "waypoints: ", self.waypoints
+            #print("waypoints: ", self.waypoints)
             self.goal = self.waypoints.pop(0)
-            print "initial goal: ", self.goal
+            print("initial goal: ", self.goal)
             
             self.goal_reached = False
         else:
@@ -149,14 +149,14 @@ class PathController():
             self.v,self.w,self.goal_reached, alpha, pos_beta = self.diff_drive_controller.compute_vel(self.state,self.goal)
             self.v = 1.0
             if(self.goal_reached):
-                print "wp goal reached"
+                print("wp goal reached")
                 #print "v: ", v
                 #print "w: ", w
-                print "state: ", self.state
-                print "goal: ", self.goal
+                print("state: ", self.state)
+                print("goal: ", self.goal)
         elif( len(self.waypoints) > 0 and (self.goal_reached) ): # or abs(alpha) > 3.14/2) ):
             self.goal = self.waypoints.pop(0)
-            print "wp goal: ", self.goal
+            print("wp goal: ", self.goal)
             self.goal_reached = False
         else:
             self.v = 0.
@@ -184,6 +184,7 @@ class PathController():
 
 if __name__ == '__main__':
     try:
+        rospy.init_node('path_controller')
         path_control = PathController()
         rospy.loginfo("Starting Wheele Path Controller")
         #rospy.spin()

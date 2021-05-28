@@ -254,7 +254,7 @@ bool AvoidObs::update_plan()
 	{
 		//Potential Fields Test
 		// pfObs is an odom grid map, same info as costmap
-		pfObs.header.stamp = ros::Time::now();
+ 		pfObs.header.stamp = ros::Time::now();
 		pfObs.data.clear();
 		pfObs.data.resize(n_width_*n_height_);
 
@@ -308,6 +308,8 @@ bool AvoidObs::update_plan()
 		cmd_pub_.publish(cmd);
 		pf_obs_pub_.publish(pfObs);
 	}
+
+    return true;
 }
 
 bool AvoidObs::get_map_indices(float x, float y, int& ix, int& iy)

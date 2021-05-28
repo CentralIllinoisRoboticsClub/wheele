@@ -489,7 +489,7 @@ void NavStates::track_path()
 
   if(!(m_odom_received && m_path_received) || m_path.poses.size() == 0)
   {
-    ROS_INFO("odom_received, path_received, path size: %d, %d, %d",(int)m_odom_received, (int)m_path_received, (int)m_path.poses.size());
+    ROS_DEBUG_NAMED("nav_states_odom","odom_received, path_received, path size: %d, %d, %d",(int)m_odom_received, (int)m_path_received, (int)m_path.poses.size());
     //m_state = STATE_SEARCH_IN_PLACE;
     return;
   }
