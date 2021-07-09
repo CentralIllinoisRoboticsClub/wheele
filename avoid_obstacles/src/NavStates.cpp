@@ -45,6 +45,7 @@ m_index_path(0),
 m_speed(0.0),
 m_omega(0.0),
 m_filt_speed(0.0),
+m_prev_speed(0.0),
 m_scan_collision_db_count(0),
 m_cone_detect_db_count(0),
 m_close_to_obs(false)
@@ -93,6 +94,7 @@ m_close_to_obs(false)
   nh_p.param("reverse_speed", params.reverse_speed, 0.8);
   nh_p.param("bump_db_limit", params.bump_db_limit, 2);
   nh_p.param("path_step_size", params.path_step_size, 3);
+  nh_p.param("ramp_time", params.ramp_time, 2.0);
 
   nh_p.param("x_coords", x_coords, x_coords);
   nh_p.param("y_coords", y_coords, y_coords);
@@ -376,6 +378,10 @@ void NavStates::clickedGoalCallback(const geometry_msgs::PoseStamped& data)
 
 void NavStates::scanCallback(const sensor_msgs::LaserScan& scan) //use a point cloud instead, use laser2pc.launch
 {
+  if(m_state == STATE_TOUCH_TARGET)
+  {
+	  return;
+  }
   m_collision = false;
   unsigned close_count = 0;
 
@@ -448,8 +454,8 @@ void NavStates::commandTo(const geometry_msgs::PoseStamped& goal)
   if(params.cmd_control_ver == 0)
   {
     // ********** FROM DiffDriveController ********
-    double ka= 2.0;
-    double kb= 0.001;
+    double ka= 1.0;
+    double kb= 0.0;
     m_omega = ka*heading_error + kb*des_yaw;
     // **********************************************
   }
@@ -605,7 +611,7 @@ void NavStates::turn_to_target()
 void NavStates::touch_target()
 {
   commandTo(camera_cone_pose);
-  if(m_valid_bump || m_collision)
+  if(m_valid_bump) // || m_collision) m_collision means virtual bumper detected obstacle
   {
     // this causes update_waypoint() to be called again until it is successful
     m_init_wp_published = false;
@@ -651,6 +657,7 @@ void NavStates::update_target(geometry_msgs::PoseStamped target_pose)
 void NavStates::update_states()
 {
   int prev_state = m_state;
+  
   switch(m_state) {
   case STATE_TRACK_PATH:
     track_path();
@@ -691,6 +698,31 @@ void NavStates::update_states()
     m_speed = params.slow_speed*m_speed/fabs(m_speed);
   }
 
+// Compute speed ramp parameters
+float time_full_rev_to_fwd = params.ramp_time;	// Seconds
+float delta_speed = (params.desired_speed + params.reverse_speed) / params.plan_rate / time_full_rev_to_fwd;
+float speed = m_prev_speed;
+//ROS_WARN("prev=%f, m_speed=%f, delta=%f", m_prev_speed, m_speed, delta_speed);
+
+
+// Ramp to target speed
+if (m_speed > m_prev_speed)
+{
+   speed = m_prev_speed + delta_speed;
+   if (speed > m_speed)
+     speed = m_speed;
+}
+else if (m_speed < m_prev_speed)
+{
+   speed = m_prev_speed - delta_speed;
+   if (speed < m_speed)
+     speed = m_speed;
+}
+//ROS_WARN("speed=%f", speed);
+
+m_prev_speed = speed;
+m_filt_speed = speed;
+/*
   if(m_speed <= 0.0 && m_valid_bump)
   {
     m_filt_speed = m_speed;
@@ -700,6 +732,7 @@ void NavStates::update_states()
     double alpha = params.cmd_speed_filter_factor;
     m_filt_speed = m_filt_speed*alpha + m_speed*(1.0-alpha);
   }
+*/
 
   if(fabs(m_filt_speed) > params.desired_speed)
   {

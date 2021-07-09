@@ -96,7 +96,7 @@ private:
   unsigned m_num_waypoints, m_index_wp;
   int m_state;
   unsigned m_index_path;
-  double m_speed, m_omega, m_filt_speed;
+  double m_speed, m_omega, m_filt_speed, m_prev_speed;
   unsigned m_scan_collision_db_count;
   unsigned m_cone_detect_db_count;
 
@@ -132,6 +132,7 @@ private:
     double reverse_speed;
     int bump_db_limit;
     int path_step_size;
+    double ramp_time; // Time to ramp full fwd to full rev, seconds
     //int min_new_path_size;
   }params;
 
