@@ -74,6 +74,8 @@ m_close_to_obs(false)
   nh_p.param("plan_rate_hz", params.plan_rate, 10.0);
   nh_p.param("use_PotFields", params.use_PotFields, false);
   nh_p.param("valid_cone_to_wp_dist", params.valid_cone_to_wp_dist, 1.0);
+  nh_p.param("close_cone_to_bot_dist", params.close_cone_to_bot_dist, 1.0);
+
   nh_p.param("near_path_dist", params.near_path_dist, 1.0);
   nh_p.param("valid_end_of_path_dist", params.valid_end_of_path_dist, 5.0);
   nh_p.param("desired_speed", params.desired_speed, 0.6);
@@ -508,10 +510,13 @@ void NavStates::track_path()
     return;
   }
 
-  if(m_cone_detected && m_current_waypoint_type == WP_TYPE_CONE) //TODO: Verify we should ignore m_cone_detected for intermediate waypoints
+  if(m_cone_detected && m_current_waypoint_type == WP_TYPE_CONE)
   {
-    m_state = STATE_TURN_TO_TARGET;
-    return;
+	  if(distance_between_poses(bot_pose, odom_goal_pose) < params.close_cone_to_bot_dist) //TODO: Verify we should ignore m_cone_detected for intermediate waypoints
+	  {
+		m_state = STATE_TURN_TO_TARGET;
+		return;
+	  }
   }
 
   // end of path?, See pathCallback
