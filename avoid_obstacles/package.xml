@@ -1,22 +1,42 @@
 <?xml version="1.0"?>
-<?xml-model href="http://download.ros.org/schema/package_format2.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="2">
   <name>avoid_obstacles</name>
   <version>0.1.0</version>
   <description>The avoid_obstacles package</description>
   <maintainer email="circ@example.com">CIRC</maintainer>
-  <license>BSD</license>
 
+
+  <!-- One license tag required, multiple allowed, one license per tag -->
+  <!-- Commonly used license strings: -->
+  <!--   BSD, MIT, Boost Software License, GPLv2, GPLv3, LGPLv2.1, LGPLv3 -->
+  <license>BSD</license>
+  
   <url type="repository">https://github.com/centralillinoisroboticsclub/wheele</url>
   <author>coderkarl</author>
 
-  <buildtool_depend>catkin</buildtool_depend>
-
+  <!-- For custom messages -->
+  <!-- <buildtool_depend>rosidl_default_generators</buildtool_depend> -->
+  
+  <buildtool_depend>ament_cmake_auto</buildtool_depend>
+  <buildtool_depend>ament_cmake_python</buildtool_depend>
   <depend>geometry_msgs</depend>
   <depend>nav_msgs</depend>
-  <depend>roscpp</depend>
-  <depend>rospy</depend>
+  <depend>rclcpp</depend>
+  <depend>rclpy</depend>
   <depend>sensor_msgs</depend>
   <depend>std_msgs</depend>
-  <depend>tf</depend>
+  <depend>tf2</depend>
+  <depend>tf2_ros</depend>
+  <depend>tf2_geometry_msgs</depend>
+  <depend>nav2_msgs</depend>
+  
+  <exec_depend>nav2_map_server</exec_depend>
+  
+   <!-- For custom messages -->
+   <!-- <exec_depend>rosidl_default_runtime</exec_depend> -->
+
+  <!-- The export tag contains other, unspecified, tags -->
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
 </package>
