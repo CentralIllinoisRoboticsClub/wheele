@@ -9,7 +9,7 @@ mkdir -p catkin_ws/src
 cd catkin_ws/src/
 git clone https://github.com/CentralIllinoisRoboticsClub/wheele.git
 cd ~/catkin_ws/
-rosdep update
+#rosdep update #failed, had to install
 sudo apt install python3-rosdep
 sudo rosdep init
 rosdep update
@@ -17,6 +17,7 @@ rosdep install --from-paths src --ignore-src -r -y
 cd src/
 git clone https://github.com/coderkarl/ros_misc.git
 git clone https://github.com/CentralIllinoisRoboticsClub/leddar_can.git
+cd ~/catkin_ws
 rosdep install --from-paths src --ignore-src -r -y
 catkin_make
 echo "source ~/catkin_ws/devel/setup.bash" >> ~/.bashrc
