@@ -20,4 +20,5 @@
   <depend>sensor_msgs</depend>
   <depend>std_msgs</depend>
   <depend>tf_conversions</depend>
+  <exec_depend>cv_camera</exec_depend>
 </package>

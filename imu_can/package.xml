@@ -17,4 +17,6 @@
   <depend>roscpp</depend>
   <depend>sensor_msgs</depend>
   <depend>std_msgs</depend>
+  <exec_depend>ros_canopen</exec_depend>
+  
 </package>

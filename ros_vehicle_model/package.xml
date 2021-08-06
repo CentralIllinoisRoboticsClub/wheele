@@ -17,4 +17,5 @@
   <depend>wheele_msgs</depend>
   <depend>geometry_msgs</depend>
   <depend>can_msgs</depend>
+  <exec_depend>ros_canopen</exec_depend>
 </package>

@@ -19,4 +19,5 @@
   <depend>sensor_msgs</depend>
   <depend>std_msgs</depend>
   <depend>tf</depend>
+  <exec_depend>nmea_navsat_driver</exec_depend>
 </package>
