@@ -1,0 +1,23 @@
+# BEGIN ROS NOETIC INSTALL
+echo "deb http://packages.ros.org/ros/ubuntu focal main" | sudo tee /etc/apt/sources.list.d/ros-focal.list
+sudo apt-key adv --keyserver 'hkp://keyserver.ubuntu.com:80' --recv-key C1CF6E31E6BADE8868B172B4F42ED6FBAB17C654
+sudo apt update
+sudo apt install ros-noetic-desktop-full 
+echo "source /opt/ros/noetic/setup.bash" >> ~/.bashrc
+source ~/.bashrc
+sudo apt-get install python3-rosdep
+sudo rosdep init
+rosdep update
+mkdir -p catkin_ws/src
+cd catkin_ws/src/
+git clone https://github.com/CentralIllinoisRoboticsClub/leddar_can.git
+git clone https://github.com/CentralIllinoisRoboticsClub/wheele.git
+git clone https://github.com/coderkarl/ros_misc.git
+cd ~/catkin_ws/
+rosdep install --from-paths src --ignore-src -r -y
+catkin_make
+source ~/.bashrc
+echo "source ~/catkin_ws/devel/setup.bash" >> ~/.bashrc
+source ~/.bashrc
+roslaunch avoid_obstacles nav_states_master.launch 
+# END ROS NOETIC WHEELE INSTALL
