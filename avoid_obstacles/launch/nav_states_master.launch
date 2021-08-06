@@ -69,7 +69,7 @@
 
   <!-- <node pkg="avoid_obstacles" type="waypoints_manager.py" name="waypoints_manager" output="screen"/> -->
 
-  <node pkg="cone_finder" type="cone_finder.py" name="cone_finder">
+  <node pkg="cone_finder" type="cone_finder_reconfig.py" name="cone_finder">
     <remap from="/camera/image_raw" to="/camera/image_raw"/>
     <param name="hue_max" value="12" type="int" />
   </node>

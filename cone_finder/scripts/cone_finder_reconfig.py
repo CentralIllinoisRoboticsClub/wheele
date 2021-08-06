@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # Copyright 2019 coderkarl. Subject to the BSD license.
 
 import cv2
@@ -12,7 +12,7 @@ import sys
 import threading
 
 from dynamic_reconfigure.server import Server
-from cone_detector.cfg import ConeConfig
+from cone_finder.cfg import ConeConfig
 
 rect_w = 3;
 rect_h = 6;
@@ -118,7 +118,7 @@ class ConeFinder:
             #except CvBridgeError as e:
             #    print(e)
             
-            _, contours, hierarchy = cv2.findContours(open2,cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE) #python 2 vs 3
+            contours, hierarchy = cv2.findContours(open2,cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE) #python 2 vs 3
             # finding contour with maximum area and store it as best_cnt
             max_area = 0
             for cnt in contours:
@@ -143,7 +143,7 @@ class ConeFinder:
                     cv2.circle(image_cv,(cx,cy),5,255,-1)
                     (rx,ry,rw,rh) = cv2.boundingRect(best_cnt)
                     cx2,cy2 = (rx+rw/2,ry+rh/2)
-                    cv2.circle(image_cv,(cx2,cy2),5,100,-1)
+                    cv2.circle(image_cv,(round(cx2),round(cy2)),5,100,-1)
                     cv2.rectangle(image_cv, (rx,ry), (rx+rw,ry+rh), (0, 255, 0), 3)
                     #rospy.loginfo("Cone Found at pixel x,y: %d, %d",int(cx),int(cy))
                     
