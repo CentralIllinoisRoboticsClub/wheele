@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # Copyright 2019 coderkarl. Subject to the BSD license.
 
 import rospy, math
@@ -8,7 +8,9 @@ from wheele_msgs.msg import SpeedCurve
 from std_msgs.msg import Int16
 
 from nav_msgs.msg import Odometry
-import tf
+import tf2_ros
+from geometry_msgs.msg import TransformStamped
+import tf_conversions
 from geometry_msgs.msg import Twist, Quaternion, Point, Pose, Vector3, Vector3Stamped
 from sensor_msgs.msg import Imu
 
@@ -26,10 +28,11 @@ class CANConverter():
         self.mag_heading_deg = 0
         self.odom_heading_deg = 0
         self.use_compass_heading = False 
-        self.map_bc = tf.TransformBroadcaster()
-        self.ref_bc = tf.TransformBroadcaster()
         
-        self.tf_listener = tf.TransformListener()
+        self.tf_bc = tf2_ros.TransformBroadcaster()
+        
+        self.tfBuffer = None
+        self.tf_listener = None
         
         rospy.init_node('can_converter')
         rospy.Subscriber('imu', Imu, self.accelIMU_callback, queue_size=2)
@@ -56,7 +59,6 @@ class CANConverter():
         
         self.odom_pub = rospy.Publisher('odom', Odometry, queue_size=5)
         #self.odom_ekf_pub = rospy.Publisher('odom_ekf', Odometry, queue_size=5)
-        self.odom_broadcaster = tf.TransformBroadcaster()
         
         self.prev_time = rospy.Time.now()
         
@@ -112,6 +114,10 @@ class CANConverter():
         self.odom_y_in_map = 0
         self.map_to_odom_updated = False
 
+    def init_tf(self):
+        self.tfBuffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tfBuffer)
+
     def gps_callback(self,data):
         # TODO: Make gps pose poseWithCovariance and update covariance in gps_transform based on /fix and/or other nmea data
         gpsx = data.vector.x
@@ -120,15 +126,20 @@ class CANConverter():
         bot_in_map_valid = False
         use_prev_ref = False
         
+        # AttributeError: 'TransformListener' object has no attribute 'tf_sub'
+        # https://github.com/dougsm/ggcnn_kinova_grasping/commit/61f8970f2a190e44c9732d6064cdc72c7a49adaf
+        if self.tfBuffer is None or self.tf_listener is None:
+            self.init_tf()
+        
         try:
-            (trans,quat) = self.tf_listener.lookupTransform('/map', '/base_link', rospy.Time(0))
+            trans = self.tfBuffer.lookupTransform('/map', '/base_link', rospy.Time(0))
             bot_in_map_valid = True
         except:
-            print "can2ros gps_callback, transform lookup ERROR. map to base link"
+            print("can2ros gps_callback, transform lookup ERROR. map to base link")
             
         if bot_in_map_valid:
-            xb = trans[0]
-            yb = trans[1]
+            xb = trans.transform.translation.x
+            yb = trans.transform.translation.y
             dist_to_ref_sqd = (xb-self.refx)**2 + (yb-self.refy)**2
             dist_to_ref_prev_sqd = (xb-self.refx_prev)**2 + (yb-self.refy_prev)**2
             if(dist_to_ref_prev_sqd > dist_to_ref_sqd):
@@ -146,7 +157,7 @@ class CANConverter():
             odom_dy = 0.0
                 
             if( far_dist_to_ref_sqd > self.gps_update_distance**2): # TODO: parameter, update_distance_map_to_odom
-                print "Updating map to odom based on gps"
+                print("Updating map to odom based on gps")
                 gps_theta = math.atan2(gpsy-refy_far, gpsx-refx_far)
                 bot_theta = math.atan2(yb-refy_far, xb-refx_far)
                 diff_theta = gps_theta - bot_theta
@@ -184,15 +195,28 @@ class CANConverter():
             ny = self.refy + math.sin(theta)*(x-self.refx) + math.cos(theta)*(y-self.refy)
         return nx, ny
         
+    def update_tf(self, x, y, z, quat, frame_str, child_frame_str):
+        tfs = TransformStamped()
+        tfs.header.frame_id = frame_str
+        tfs.child_frame_id = child_frame_str
+        tfs.header.stamp = rospy.time.now()
+        tfs.transform.translation.x = x
+        tfs.transform.translation.y = y
+        tfs.transform.translation.z = z
+        tfs.transform.rotation.x = quat[0]
+        tfs.transform.rotation.y = quat[1]
+        tfs.transform.rotation.z = quat[2]
+        tfs.transform.rotation.w = quat[3]
+        self.tf_bc.sendTransform(tfs)
+    
     def update_map_to_odom(self):
         # map to odom
-        quat = tf.transformations.quaternion_from_euler(0, 0, self.odom_heading_deg*3.1416/180.0)
-        self.map_bc.sendTransform(
-        (self.odom_x_in_map, self.odom_y_in_map, 0.),
+        quat = tf_conversions.transformations.quaternion_from_euler(0, 0, self.odom_heading_deg*3.1416/180.0)
+        self.update_tf(
+        self.odom_x_in_map, self.odom_y_in_map, 0.0,
         quat,
-        rospy.Time.now(),
-        "odom",
-        "map"
+        "map",
+        "odom"
         )
         
         if(self.map_to_odom_updated):
@@ -202,20 +226,18 @@ class CANConverter():
             self.map_to_odom_updated = False
         
         # map to ref
-        quat = tf.transformations.quaternion_from_euler(0, 0, 0.0)
-        self.ref_bc.sendTransform(
-        (self.refx, self.refy, 0.),
+        quat = tf_conversions.transformations.quaternion_from_euler(0, 0, 0.0)
+        self.update_tf(
+        self.refx, self.refy, 0.0,
         quat,
-        rospy.Time.now(),
-        "ref",
-        "map"
+        "map",
+        "ref"
         )
-        self.ref_bc.sendTransform(
-        (self.refx_prev, self.refy_prev, 0.),
+        self.update_tf(
+        self.refx_prev, self.refy_prev, 0.0,
         quat,
-        rospy.Time.now(),
-        "ref_prev",
-        "map"
+        "map",
+        "ref_prev"
         )
 
     def magIMU_callback(self, data):
@@ -223,7 +245,7 @@ class CANConverter():
             data.orientation.y,
             data.orientation.z,
             data.orientation.w)
-        [roll,pitch,yaw] = tf.transformations.euler_from_quaternion(quaternion)
+        [roll,pitch,yaw] = tf_conversions.transformations.euler_from_quaternion(quaternion)
         self.mag_heading_deg = yaw*180./3.14159
         if(self.heading_init_count < 10 and self.use_compass_heading):
             self.heading_init_count += 1
@@ -231,7 +253,7 @@ class CANConverter():
                 self.odom_heading_deg = self.mag_heading_deg
             else:
                 self.odom_heading_deg = (self.odom_heading_deg*(self.heading_init_count-1) + self.mag_heading_deg)/self.heading_init_count
-                print "init odom deg: ", self.odom_heading_deg
+                print("init odom deg: ", self.odom_heading_deg)
 
     def accelIMU_callback(self, data):
         accx = data.linear_acceleration.x
@@ -258,9 +280,8 @@ class CANConverter():
             #print('roll rad: ', self.roll_rad, ', pitch rad: ', self.pitch_rad)
             self.N_roll = 0
         
-        t2 = rospy.Time.now()
-        laser_quat = tf.transformations.quaternion_from_euler(self.roll_rad, self.pitch_rad, 0)
-        br.sendTransform((-0.3,0.1,0.3),laser_quat,t2,"laser","base_link")
+        laser_quat = tf_conversions.transformations.quaternion_from_euler(self.roll_rad, self.pitch_rad, 0)
+        self.update_tf(-0.3,0.1,0.3, laser_quat, "base_link", "laser")
         #####
 
     def update_CAN(self):
@@ -373,7 +394,7 @@ class CANConverter():
             dtheta_gyro_deg = gz_dps*dt*360.0/368.2 #*360.0/375.0 # Scaling needed due to static pitch/roll IMU mount?
 
         if(abs(dtheta_gyro_deg) > MAX_DTHETA_GYRO_deg):
-            print 'no gyro'
+            print('no gyro')
             dtheta_deg = dtheta_enc_deg
         else:
             #print 'use gyro'
@@ -400,13 +421,12 @@ class CANConverter():
             self.time_sum = 0
         
         #bot.botx*100,bot.boty*100,bot.bot_deg
-        odom_quat = tf.transformations.quaternion_from_euler(0, 0, self.bot_deg*3.1416/180.0)
-        self.odom_broadcaster.sendTransform(
-        (self.botx, self.boty, 0.),
+        odom_quat = tf_conversions.transformations.quaternion_from_euler(0, 0, self.bot_deg*3.1416/180.0)
+        self.update_tf(
+        self.botx, self.boty, 0.,
         odom_quat,
-        t2,
-        "base_link",
-        "odom"
+        "odom",
+        "base_link"
         )
         
         odom = Odometry()
