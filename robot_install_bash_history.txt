@@ -23,3 +23,14 @@ echo "source ~/catkin_ws/devel/setup.bash" >> ~/.bashrc
 source ~/.bashrc
 roslaunch avoid_obstacles nav_states_master.launch
 #END ROS NOETIC WHEELE INSTALL
+cd ~/catkin_ws/src/wheele
+git checkout -b noetic origin/noetic
+sudo apt install python3-pip
+pip install python-can
+sudo nano /boot/firmware/usercfg.txt
+# Added dtoverlay=mcp2515-can0,oscillator=12000000,interrupt=25
+sudo reboot
+sudo apt install can-utils
+sudo /sbin/ip link set can0 up type can bitrate 500000 # NEED TO SETUP ON BOOT, CHECK BITRATE
+sudo nano /etc/udev/rules.d/97-usb-serial.rules
+# SUBSYSTEM=="tty", ATTRS{idVendor}=="1546", ATTRS{idProduct}=="01a8", SYMLINK+="GPS_ultimate"
