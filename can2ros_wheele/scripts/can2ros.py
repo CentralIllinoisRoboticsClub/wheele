@@ -199,7 +199,7 @@ class CANConverter():
         tfs = TransformStamped()
         tfs.header.frame_id = frame_str
         tfs.child_frame_id = child_frame_str
-        tfs.header.stamp = rospy.time.now()
+        tfs.header.stamp = rospy.Time.now()
         tfs.transform.translation.x = x
         tfs.transform.translation.y = y
         tfs.transform.translation.z = z
@@ -221,7 +221,7 @@ class CANConverter():
         
         if(self.map_to_odom_updated):
             raw_sig = Int16()
-            raw_sig.data = 1
+            raw_sig.data = int(1)
             self.map_to_odom_update_pub.publish(raw_sig)
             self.map_to_odom_updated = False
         
@@ -259,7 +259,7 @@ class CANConverter():
         accx = data.linear_acceleration.x
         accy = data.linear_acceleration.y
         ##### USE IMU TO PUBLISH TRANSFORM BETWEEN LASER AND BASE
-        br = tf.TransformBroadcaster()
+        #br = tf.TransformBroadcaster()
         if(abs(accx) < 3 and abs(accy) < 3):
             try:
                 roll_rad = math.asin(accy/9.81) +0.0
@@ -325,12 +325,12 @@ class CANConverter():
     
     def pub_battery_signal(self):
         raw_sig = Int16()
-        raw_sig.data = self.raw_battery_voltage
+        raw_sig.data = int(self.raw_battery_voltage)
         self.batt_pub.publish(raw_sig)
     
     def pub_bump_switch(self):
         raw_sig = Int16()
-        raw_sig.data = 1 - self.raw_bump_switch
+        raw_sig.data = int(1 - self.raw_bump_switch)
         self.bump_switch_pub.publish(raw_sig)
     
     def update_cmd(self):
@@ -359,7 +359,7 @@ class CANConverter():
         self.raw_cmd_pub.publish(self.raw_cmd)
         
         auto_raw_msg = Int16()
-        auto_raw_msg.data = self.raw_auto_cmd
+        auto_raw_msg.data = int(self.raw_auto_cmd)
         self.auto_raw_pub.publish(auto_raw_msg)
         #print 'Published cmd'      
                 

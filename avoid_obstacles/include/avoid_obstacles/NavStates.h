@@ -36,6 +36,7 @@ private:
   void bumpCallback(const std_msgs::Int16& data);
   void pathCallback(const nav_msgs::Path& path_in);
   void mapToOdomUpdateCallback(const std_msgs::Int16& data);
+  void autoRawCallback(const std_msgs::Int16& data);
 
   void update_plan();
   bool check_for_cone_obstacle();
@@ -75,6 +76,8 @@ private:
   ros::Subscriber obs_cone_sub_;
   ros::Subscriber map_to_odom_update_sub_;
 
+  ros::Subscriber auto_sub_;
+
   geometry_msgs::PoseStamped bot_pose, map_goal_pose, odom_goal_pose;
   geometry_msgs::PoseStamped camera_cone_pose, obs_cone_pose, camera_cone_pose_in_map;
   float bot_yaw;
@@ -96,11 +99,14 @@ private:
   unsigned m_num_waypoints, m_index_wp;
   int m_state;
   unsigned m_index_path;
-  double m_speed, m_omega, m_filt_speed, m_prev_speed;
+  double m_speed, m_actual_speed, m_omega, m_filt_speed, m_prev_speed;
+  double m_reverse_time;
   unsigned m_scan_collision_db_count;
   unsigned m_cone_detect_db_count;
 
   bool m_close_to_obs;
+
+  bool m_slow_latched;
 
   ros::Time state_start_time;
   ros::Time m_bump_time;
@@ -143,6 +149,8 @@ private:
   std::vector<int> hill_wp_list;
   bool waypoints_are_in_map_frame;
   bool sim_mode;
+
+  bool m_auto_mode;
 
 };
 

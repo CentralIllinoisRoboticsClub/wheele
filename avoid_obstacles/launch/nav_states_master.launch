@@ -12,7 +12,7 @@
   <node pkg="ros_vehicle_model" type="ros2can" name="ros2can" output="screen" />
 
   <node pkg="imu_can" type = "imu_stream" name = "imu_stream" />
-  <node name="nmea_serial_driver" pkg="nmea_navsat_driver" type="nmea_serial_driver" args="_port:=/dev/GPS_ultimate _baud:=9600 _frame_id:=gps"/>
+  <node name="nmea_serial_driver" pkg="nmea_navsat_driver" type="nmea_serial_driver" args="_port:=/dev/GPS _baud:=9600 _frame_id:=gps"/>
   <node pkg="gps_modular" type="gps_transform.py" name="gps_transform" output="screen"/>
 
   <node pkg="avoid_obstacles" type="nav_states" name="nav_states" output="screen">
@@ -21,7 +21,7 @@
       plan_rate_hz: 10.0
       use_PotFields: false
       close_cone_to_bot_dist: 1.4
-      valid_cone_to_wp_dist: 3.0
+      valid_cone_to_wp_dist: 5.0
       near_path_dist: 1.0
       valid_end_of_path_dist: 3000.0
       desired_speed: 1.0
@@ -33,7 +33,7 @@
       reverse_time: 1.5
       cmd_control_ver: 0
       scan_collision_db_limit: 1
-      scan_collision_range: 1.0
+      scan_collision_range: 1.5
       cone_detect_db_limit: 1
       cmd_speed_filter_factor: 0.5
       report_bumped_obstacles: true
@@ -47,10 +47,10 @@
       waypoints_are_in_map_frame: false
     </rosparam>
 
-    <rosparam param="x_coords">[10, 10]</rosparam>
-    <rosparam param="y_coords">[0, -10]</rosparam>
-    <rosparam param="waypoint_types">[1, 1]</rosparam>
-    <rosparam param="hill_waypoint_list">[0, 0]</rosparam>
+    <rosparam param="x_coords">[10, 10, 20]</rosparam>
+    <rosparam param="y_coords">[0, -10, -6]</rosparam>
+    <rosparam param="waypoint_types">[1, 1, 1]</rosparam>
+    <rosparam param="hill_waypoint_list">[0, 0, 0]</rosparam>
   </node>
 
   <node pkg="cv_camera" type="cv_camera_node" name="camera">

@@ -44,11 +44,15 @@ m_state(STATE_TRACK_PATH),
 m_index_path(0),
 m_speed(0.0),
 m_omega(0.0),
+m_actual_speed(0.0),
 m_filt_speed(0.0),
 m_prev_speed(0.0),
+m_reverse_time(0.0),
 m_scan_collision_db_count(0),
 m_cone_detect_db_count(0),
-m_close_to_obs(false)
+m_close_to_obs(false),
+m_slow_latched(false),
+m_auto_mode(false)
 {
   //Topics you want to publish
   cmd_pub_ = nh_.advertise<geometry_msgs::Twist>("cmd_vel",10);
@@ -70,6 +74,7 @@ m_close_to_obs(false)
   bump_sub_ = nh_.subscribe("bump_switch",1, &NavStates::bumpCallback, this);
   path_sub_ = nh_.subscribe("path",5, &NavStates::pathCallback, this);
   map_to_odom_update_sub_ = nh_.subscribe("map_to_odom_update", 1, &NavStates::mapToOdomUpdateCallback, this);
+  auto_sub_ = nh_.subscribe("auto_raw", 1, &NavStates::autoRawCallback, this);
   nh_p  = ros::NodeHandle("~");
   nh_p.param("plan_rate_hz", params.plan_rate, 10.0);
   nh_p.param("use_PotFields", params.use_PotFields, false);
@@ -352,6 +357,18 @@ void NavStates::mapToOdomUpdateCallback(const std_msgs::Int16& msg)
   camera_cone_pose_in_map.header.stamp = ros::Time::now();
 }
 
+void NavStates::autoRawCallback(const std_msgs::Int16& msg)
+{
+  if(msg.data > 1700)
+  {
+	  m_auto_mode = true;
+  }
+  if(msg.data < 1600)
+  {
+	  m_auto_mode = false;
+  }
+}
+
 double NavStates::get_plan_rate()
 {
   return params.plan_rate;
@@ -363,6 +380,7 @@ void NavStates::odomCallback(const nav_msgs::Odometry& odom)
   bot_pose.pose.position = odom.pose.pose.position;
   bot_pose.pose.orientation = odom.pose.pose.orientation;
   bot_yaw = get_yaw(bot_pose.pose);
+  m_actual_speed = odom.twist.twist.linear.x;
   m_odom_received = true;
 }
 
@@ -438,9 +456,12 @@ void NavStates::commandTo(const geometry_msgs::PoseStamped& goal)
   m_speed = params.desired_speed;
   // use m_close_to_obs from scanCallback
   if(m_state == STATE_TOUCH_TARGET &&
-      ((distance_between_poses(bot_pose, odom_goal_pose) < params.slow_approach_distance) || m_close_to_obs) )
+      ((distance_between_poses(bot_pose, odom_goal_pose) < params.slow_approach_distance) ||
+    		  m_close_to_obs ||
+			  m_slow_latched) )
   {
     m_speed = params.slow_speed;
+    m_slow_latched = true;
   }
   double des_yaw = getTargetHeading(goal);
   double heading_error = des_yaw - bot_yaw;
@@ -481,6 +502,11 @@ void NavStates::commandTo(const geometry_msgs::PoseStamped& goal)
 
 void NavStates::state_init()
 {
+  // Calculate reverse time when changing to a reversing state
+  if (m_state < 0)	// Reversing states are negative state numbers
+  {
+  	m_reverse_time = params.reverse_time;
+  }
   state_start_time = ros::Time::now();
 }
 double NavStates::get_time_in_state()
@@ -550,7 +576,7 @@ void NavStates::retreat()
 {
   m_speed = -params.reverse_speed;
   m_omega = 0.0; //eventually retreat with m_omega = omega from path control
-  if(get_time_in_state() > params.reverse_time)
+  if(get_time_in_state() > m_reverse_time)
   {
     m_speed = 0.0;
     m_state = STATE_TRACK_PATH;
@@ -627,6 +653,7 @@ void NavStates::touch_target()
     m_speed = 0.0;
     m_omega = 0.0;
     m_state = STATE_RETREAT_FROM_CONE;
+    
     // Known obstacle pose should be published in the odom frame for AvoidObs costmap
     known_obs_pub_.publish(bot_pose);
   }
@@ -643,7 +670,7 @@ void NavStates::retreat_from_cone()
 
   m_speed = -params.reverse_speed;
   m_omega = 0.0;
-  if(get_time_in_state() > params.reverse_time)
+  if(get_time_in_state() > m_reverse_time)
   {
     m_speed = 0.0;
     m_state = STATE_TRACK_PATH;
@@ -665,6 +692,7 @@ void NavStates::update_states()
   
   switch(m_state) {
   case STATE_TRACK_PATH:
+	m_slow_latched = false;
     track_path();
     break;
   case STATE_TURN_TO_TARGET:
@@ -674,12 +702,15 @@ void NavStates::update_states()
     touch_target();
     break;
   case STATE_SEARCH_IN_PLACE:
+	m_slow_latched = false;
     search_in_place();
     break;
   case STATE_RETREAT:
+	m_slow_latched = false;
     retreat();
     break;
   case STATE_RETREAT_FROM_CONE:
+	m_slow_latched = false;
     retreat_from_cone();
     break;
   default: //optional
@@ -726,6 +757,11 @@ else if (m_speed < m_prev_speed)
 //ROS_WARN("speed=%f", speed);
 
 m_prev_speed = speed;
+if(!m_auto_mode)
+{
+	m_prev_speed = 0.0;
+}
+//m_prev_speed = m_actual_speed;
 m_filt_speed = speed;
 /*
   if(m_speed <= 0.0 && m_valid_bump)
