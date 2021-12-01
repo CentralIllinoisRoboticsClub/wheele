@@ -1,26 +1,31 @@
-#DO NOT OR FILTS TOGETHER
-#INSTEAD, JUST FIND CONTOURS ON EACH SEPARATE FILT
-#HOW TO AUTOMATICALLY FIND THE BACKGROUND COLORS OF AN IMAGE?
-# 1. Given a range of colors defined like below (MIN and MAX for inRange)
-#    Step through each color, filt img, close/open, find contours
-#    If a large contour exists, assume it is a background color
-#    Watch out for being close up to walls, etc.
-#!/usr/bin/env python
+#!/usr/bin/env python3
+# Copyright 2019 coderkarl. Subject to the BSD license.
+
 import cv2
-import imutils
+#import imutils
 import numpy as np
+from matplotlib import pyplot as plt
+import time
 
 def nothing(x):
     pass
 
 TREE_MIN = np.array([0, 0, 0],np.uint8)
 TREE_MAX = np.array([20, 255, 255],np.uint8)
-rect_w = 5;
-rect_h = 50;
-noise_se_w = 5;
-noise_se_h = 5;
-fill_se_w = 5;
-fill_se_h = 5;
+rect_w = 3;
+rect_h = 6;
+noise_se_w = 3;
+noise_se_h = 7;
+fill_se_w = 3;
+fill_se_h = 10;
+
+hue_min = 0
+hue_max = 12
+sat_min = 70
+sat_max = 255
+val_min = 70
+val_max = 255
+
 #Probably faster to just use channel 0 of hsv image
 #and apply simple threshold, rather than inRange
 
@@ -37,16 +42,50 @@ cv2.namedWindow('control', cv2.WINDOW_NORMAL)
 cv2.namedWindow('control2', cv2.WINDOW_NORMAL)
 cv2.createTrackbar('Hue Min','control', 0,255,nothing)
 cv2.createTrackbar('Hue Max','control',12,255,nothing)
-cv2.createTrackbar('Sat Min','control',75,255,nothing)
-cv2.createTrackbar('Sat Max','control',230,255,nothing)
-cv2.createTrackbar('Val Min','control',105,255,nothing)
+cv2.createTrackbar('Sat Min','control',70,255,nothing)
+cv2.createTrackbar('Sat Max','control',255,255,nothing)
+cv2.createTrackbar('Val Min','control',70,255,nothing)
 cv2.createTrackbar('Val Max','control',255,255,nothing)
 cv2.createTrackbar('Noise SE Width','control2',3,99,nothing)
 cv2.createTrackbar('Noise SE Height','control2',7,99,nothing)
 cv2.createTrackbar('Fill SE Width','control2',3,99,nothing)
 cv2.createTrackbar('Fill SE Height','control2',10,99,nothing)
-cv2.createTrackbar('Rect Width','control2',0,99,nothing)
-cv2.createTrackbar('Rect Height','control2',0,99,nothing)
+cv2.createTrackbar('Rect Width','control2',3,99,nothing)
+cv2.createTrackbar('Rect Height','control2',6,99,nothing)
+
+def detect_shape(self, c):
+        # https://www.pyimagesearch.com/2016/02/08/opencv-shape-detection/
+        # initialize the shape name and approximate the contour
+        shape = "unidentified"
+        peri = cv2.arcLength(c, True)
+        approx = cv2.approxPolyDP(c, 0.1 * peri, True) #0.04*peri
+        
+        # if the shape is a triangle, it will have 3 vertices
+        if len(approx) == 3:
+            shape = "triangle"
+
+        # if the shape has 4 vertices, it is either a square or
+        # a rectangle
+        elif len(approx) == 4:
+            # compute the bounding box of the contour and use the
+            # bounding box to compute the aspect ratio
+            (x, y, w, h) = cv2.boundingRect(approx)
+            ar = w / float(h)
+
+            # a square will have an aspect ratio that is approximately
+            # equal to one, otherwise, the shape is a rectangle
+            shape = "square" if ar >= 0.95 and ar <= 1.05 else "rectangle"
+
+        # if the shape is a pentagon, it will have 5 vertices
+        elif len(approx) == 5:
+            shape = "pentagon"
+
+        # otherwise, we assume the shape is a circle
+        else:
+            shape = "circle"
+
+        # return the name of the shape
+        return shape
 
 def find_marker(image):
     # convert the image to grayscale, blur it, and detect edges
@@ -64,58 +103,67 @@ def find_marker(image):
     # compute the bounding box of the of the paper region and return it
     return cv2.minAreaRect(c)
 
+
+plt.ion()
+fig = plt.figure(1)
+ax1 = fig.add_subplot(311)
+ax2 = fig.add_subplot(312)
+ax3 = fig.add_subplot(313)
+ax1.set_xlim([0,180])
+ax1.set_ylim([0,1.0])
+ax2.set_xlim([0,255])
+ax2.set_ylim([0,1.0])
+ax3.set_xlim([0,255])
+ax3.set_ylim([0,1.0])
+line1, = ax1.plot(0, 0,'o')
+line2, = ax2.plot(0, 0,'o')
+line3, = ax3.plot(0, 0,'o')
+
 #img_num = [60,81,94,100,144,158,194,999]
 img_num = range(0,187)
-k = 0
+k = 73
 while k < len(img_num):
     if(k<0):k=0
     best_cnt = np.array([0])
-    #img_name = 'sync_photos91/image'+str(img_num[k])+'.jpg'
-    #img_name = 'testB_'+str(img_num[k])+'.jpg'
-    img_name = "/home/karl/cone_run4_pics/frame{:04d}.jpg".format(k)
-    orig = cv2.imread(img_name)
-    rows,cols,nc = orig.shape
+    img_name = "/home/karl/cone_run4_pics/c4frame{:04d}.jpg".format(k)
+    print(k)
+    image_cv = cv2.imread(img_name)
+    rows,cols,nc = image_cv.shape
     #roi = orig[60:rows,0:cols]
     #orig = roi
 
-    hsv = cv2.cvtColor(orig,cv2.COLOR_BGR2HSV)
+    hsv = cv2.cvtColor(image_cv,cv2.COLOR_BGR2HSV)
     while(1):
-        orig = cv2.imread(img_name)
+        image_cv = cv2.imread(img_name)
+        # PROCESS START
+        img_h, img_w, img_d = image_cv.shape
+                
+        CONE_MIN = np.array([hue_min, sat_min, val_min],np.uint8) #75, 86
+        CONE_MAX = np.array([hue_max, sat_max, val_max],np.uint8)
+        CONE_MIN2 = np.array([180 - hue_max, sat_min, val_min],np.uint8)
+        CONE_MAX2 = np.array([180 - hue_min, sat_max, val_max],np.uint8)
+        hsv = cv2.cvtColor(image_cv,cv2.COLOR_BGR2HSV)
+        hsv_filt1 = cv2.inRange(hsv, CONE_MIN, CONE_MAX)
+        hsv_filt2 = cv2.inRange(hsv, CONE_MIN2, CONE_MAX2)
+        hsv_filt = cv2.bitwise_or(hsv_filt1, hsv_filt2)
         
-        tree_filt = cv2.inRange(hsv, TREE_MIN, TREE_MAX)
-        cv2.imshow('tree_filt',tree_filt)
-
-        gray = cv2.cvtColor(orig.copy(), cv2.COLOR_BGR2GRAY)
-        gray = cv2.GaussianBlur(gray, (25, 25), 0)
-        adapt = cv2.adaptiveThreshold(gray,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,\
-                                     cv2.THRESH_BINARY,15,0)
-        #adapt = cv2.bitwise_not(adapt)
-        cv2.imshow('adapt',adapt)
-
-        rect_w = rect_w +(rect_w==0)
-        rect_h = rect_h +(rect_h==0)
-        noise_se_w = noise_se_w +(noise_se_w==0)
-        noise_se_h = noise_se_h +(noise_se_h==0)
-        fill_se_w = fill_se_w +(fill_se_w==0)
-        fill_se_h = fill_se_h +(fill_se_h==0)
         #Open binary image
         rect_se = cv2.getStructuringElement(cv2.MORPH_RECT,(rect_w,rect_h))
         noise_se = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(noise_se_w,noise_se_h))
         fill_se = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(fill_se_w,fill_se_h))
         #erosion then dilation, removes noise in background
-        opening = cv2.morphologyEx(tree_filt,cv2.MORPH_OPEN,noise_se)
-        cv2.imshow('opn_e',opening)
+        opening = cv2.morphologyEx(hsv_filt,cv2.MORPH_OPEN,noise_se)
         #4.Closes the Thresholded Image
         #dilation then erosion, fills holes in foreground
         closing = cv2.morphologyEx(opening,cv2.MORPH_CLOSE, fill_se)
-        cv2.imshow('cls_e',closing)
-
         open2 = cv2.morphologyEx(closing,cv2.MORPH_OPEN, rect_se)
-        cv2.imshow('opn_r',open2)
+        #open2 = hsv_filt
+        #try:
+        #    self.pub_hsv_filt.publish(self.bridge.cv2_to_imgmsg(open2,"mono8"))
+        #except CvBridgeError as e:
+        #    print(e)
         
-        #thresh = cv2.Canny(frame,100,200)
-        #thresh2 = thresh.copy()
-        _, contours, hierarchy = cv2.findContours(open2,cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE) #python 2 vs 3
+        contours, hierarchy = cv2.findContours(open2,cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE) #python 2 vs 3
         # finding contour with maximum area and store it as best_cnt
         max_area = 0
         for cnt in contours:
@@ -126,30 +174,74 @@ while k < len(img_num):
             cnt_height = max(y)-min(y)
             cnt_width = max(x)-min(x)
             #Longest Distance between 2 points/area
-            if area > max_area and cnt_height/cnt_width > 0.5:# and cnt_height < 40 and cnt_width < 30:
+            if area > max_area and cnt_height/cnt_width > 1.0:# and cnt_height < 40 and cnt_width < 30:
                 max_area = area
                 best_cnt = cnt
-
-        #EDGE DETECTION FOR FINDING CONE
-        marker = find_marker(orig)
-        # draw a bounding box around the image and display it
-        box = cv2.cv.BoxPoints(marker) if imutils.is_cv2() else cv2.boxPoints(marker)
-        box = np.int0(box)
-        cv2.drawContours(orig, [box], -1, (0, 255, 0), 2)
-        #END EDGE DETECTION APPROACH
+                blob_found = True
+                best_height = cnt_height
 
         # finding centroids of best_cnt and draw a circle there
-        if(best_cnt.ndim == 3):
-            M = cv2.moments(best_cnt)
-            cx,cy = int(M['m10']/M['m00']), int(M['m01']/M['m00'])
-            cv2.circle(orig,(cx,cy),5,255,-1)
+        hue_list = []
+        if(blob_found):
+            if(best_cnt.ndim == 3):
+                M = cv2.moments(best_cnt)
+                cx,cy = int(M['m10']/M['m00']), int(M['m01']/M['m00'])
+                cv2.circle(image_cv,(cx,cy),5,255,-1)
+                (rx,ry,rw,rh) = cv2.boundingRect(best_cnt)
+                cx2,cy2 = (rx+rw/2,ry+rh/2)
+                cv2.circle(image_cv,(round(cx2),round(cy2)),5,100,-1)
+                cv2.rectangle(image_cv, (rx,ry), (rx+rw,ry+rh), (0, 255, 0), 3)
+                hsv_roi = hsv[ry:ry+rh, rx:rx+rw]
+                
+                for pt in best_cnt[:,0]:
+                    x = pt[0]
+                    y = pt[1]
+                    #hue = hsv[x,y,0]
+                    #hue_list.append(hue)
+        # PROCESS END
 
-        vis1 = np.concatenate((orig, hsv), axis=0)
-        vis2 = np.concatenate((tree_filt,open2), axis=0)
-        vis3 = cv2.cvtColor(vis2,cv2.COLOR_GRAY2RGB)
-        vis = np.concatenate((vis1,vis3),axis=1)
-        cv2.imshow('vis',vis)
-        cv2.imshow('orig',orig)
+        cv2.imshow('cone_detect',image_cv)
+        if hsv_roi.shape[0] > 0:
+            nPts = rw*rh
+            cv2.imshow('roi', hsv_roi)
+            #hue_mask = (hsv_roi[:,:,0] > (180 - hue_max) ) or (hsv_roi[:,:,0] < hue_min )
+            histogram, bin_edges = np.histogram(hsv_roi[:,:,0], bins=50, range=(0,180) )
+            sat_hist, sat_bin_edges = np.histogram(hsv_roi[:,:,1], bins=50, range=(0,255) )
+            val_hist, val_bin_edges = np.histogram(hsv_roi[:,:,2], bins=50, range=(0,255) )
+            #plt.figure(1)
+            #plt.title("Hue Histogram")
+            #plt.xlabel("hue value")
+            #plt.ylabel("pixels")
+            #plt.xlim([0.0, 1.0])  # <- named arguments do not work here
+
+            #plt.plot(bin_edges[0:-1], histogram)  # <- or here
+            #plt.show()
+            line1.set_xdata(bin_edges[0:-1])
+            line1.set_ydata(histogram/nPts)
+            
+            line2.set_xdata(sat_bin_edges[0:-1])
+            line2.set_ydata(sat_hist/nPts)
+            
+            line3.set_xdata(val_bin_edges[0:-1])
+            line3.set_ydata(val_hist/nPts)
+ 
+            # re-drawing the figure
+            fig.canvas.draw()
+     
+            # to flush the GUI events
+            time.sleep(0.03)
+            fig.canvas.flush_events()
+            
+
+        cv2.imshow('hsv_filt',hsv_filt)           
+        cv2.imshow('open2',open2)               
+
+        #vis1 = np.concatenate((orig, hsv), axis=0)
+        #vis2 = np.concatenate((tree_filt,open2), axis=0)
+        #vis3 = cv2.cvtColor(vis2,cv2.COLOR_GRAY2RGB)
+        #vis = np.concatenate((vis1,vis3),axis=1)
+        #cv2.imshow('vis',vis)
+        #cv2.imshow('orig',orig)
         hue_min = cv2.getTrackbarPos('Hue Min','control')
         hue_max = cv2.getTrackbarPos('Hue Max','control')
         sat_min = cv2.getTrackbarPos('Sat Min','control')
@@ -162,8 +254,8 @@ while k < len(img_num):
         fill_se_h = cv2.getTrackbarPos('Fill SE Height','control2')
         rect_w = cv2.getTrackbarPos('Rect Width','control2')
         rect_h = cv2.getTrackbarPos('Rect Height','control2')
-        TREE_MIN = np.array([hue_min, sat_min, val_min],np.uint8)
-        TREE_MAX = np.array([hue_max, sat_max, val_max],np.uint8)
+        CONE_MIN = np.array([hue_min, sat_min, val_min],np.uint8)
+        CONE_MAX = np.array([hue_max, sat_max, val_max],np.uint8)
         key = cv2.waitKey(33)
         if key == ord('n'):
             k = k+1

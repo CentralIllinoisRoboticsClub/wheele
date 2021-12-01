@@ -72,7 +72,7 @@ while k < len(img_num):
     best_cnt = np.array([0])
     #img_name = 'sync_photos91/image'+str(img_num[k])+'.jpg'
     #img_name = 'testB_'+str(img_num[k])+'.jpg'
-    img_name = "/home/karl/wheele_misc/cone_run4_pics/frame{:04d}.jpg".format(k)
+    img_name = "/home/karl/cone_run4_pics/frame{:04d}.jpg".format(k)
     orig = cv2.imread(img_name)
     rows,cols,nc = orig.shape
     #roi = orig[60:rows,0:cols]
