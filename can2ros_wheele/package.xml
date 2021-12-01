@@ -3,7 +3,7 @@
 <package format="2">
   <name>can2ros_wheele</name>
   <version>0.1.0</version>
-  <description>The can2ros_wheele package</description>
+  <description>The can2ros wheele package</description>
   <maintainer email="circ@example.com">CIRC</maintainer>
   <license>BSD</license>
 
@@ -12,10 +12,11 @@
 
   <buildtool_depend>catkin</buildtool_depend>
 
+  <depend>can_msgs</depend>
+  <depend>geometry_msgs</depend>
   <depend>roscpp</depend>
-  <depend>rospy</depend>
+  <depend>sensor_msgs</depend>
   <depend>std_msgs</depend>
-  <depend>wheele_msgs</depend>
-  <depend>tf2_ros</depend>
-  <depend>tf_conversions</depend>
+  <exec_depend>ros_canopen</exec_depend>
+  
 </package>
