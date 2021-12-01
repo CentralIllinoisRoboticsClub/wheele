@@ -1,7 +1,8 @@
 // Copyright 2019 coderkarl. Subject to the BSD license.
 
+#include "../include/can2ros/Can2Ros.hpp"
+
 #include <tf/transform_datatypes.h>
-#include "../include/can2ros/Can2Ros.h"
 
 /**********************************************************************
  * CAN communication to ROS
