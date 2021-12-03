@@ -191,7 +191,7 @@ int main(int argc, char **argv)
   //Initiate ROS
   ros::init(argc, argv, "can2ros");
 
-  Can2Ros compass_can;
+  Can2Ros can2ros;
   ROS_INFO("Starting Can2Ros");
   int loop_rate = 10;
   ros::Rate rate(loop_rate);

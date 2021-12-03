@@ -3,7 +3,7 @@
 <package format="2">
   <name>basic_pose</name>
   <version>0.1.0</version>
-  <description>The avoid_obstacles package</description>
+  <description>The basic_pose package</description>
   <maintainer email="circ@example.com">CIRC</maintainer>
   <license>BSD</license>
 
@@ -15,9 +15,10 @@
   <depend>geometry_msgs</depend>
   <depend>nav_msgs</depend>
   <depend>roscpp</depend>
-  <depend>rospy</depend>
   <depend>sensor_msgs</depend>
   <depend>std_msgs</depend>
   <depend>tf</depend>
+  <depend>tf2</depend>
+  <depend>wheele_msgs</depend>
   <exec_depend>nmea_navsat_driver</exec_depend>
 </package>

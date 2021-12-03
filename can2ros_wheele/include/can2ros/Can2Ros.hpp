@@ -1,7 +1,7 @@
 // Copyright 2019 coderkarl. Subject to the BSD license.
 
-#ifndef ImuCAN_H
-#define ImuCAN_H
+#ifndef Can2Ros_H
+#define Can2Ros_H
 
 //ROS Includes
 #include <ros/ros.h>
