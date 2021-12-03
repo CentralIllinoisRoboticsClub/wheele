@@ -26,6 +26,9 @@ m_velx(0.0)
   m_odom_pub = m_nh.advertise<nav_msgs::Odometry>("odom", 50);
 
   m_enc_sub = m_nh.subscribe("encoders", 50, &PubOdom::encoderCallback, this);
+
+  m_curTime = ros::Time::now();
+  m_prevTime = m_curTime;
 }
 
 PubOdom::~PubOdom()
@@ -36,11 +39,23 @@ PubOdom::~PubOdom()
 void PubOdom::imuCallback(const sensor_msgs::Imu &imu)
 {
   m_gyro_z_rad = imu.angular_velocity.z; // rad/sec
+  if(m_encInitialized)
+  {
+    updateOdom();
+  }
 }
 
 void PubOdom::encoderCallback(const wheele_msgs::Encoder &data)
 {
+  m_left_enc = data.left_enc;
+  m_right_enc = data.right_enc;
 
+  if(!m_encInitialized)
+  {
+    m_encInitialized = true;
+    m_prev_left_enc = m_left_enc;
+    m_prev_right_enc = m_right_enc;
+  }
 }
 
 void PubOdom::updateOdom()
@@ -105,6 +120,8 @@ void PubOdom::updateOdom()
   publishOdom();
 
   m_prevTime = m_curTime;
+  m_prev_left_enc = m_left_enc;
+  m_prev_right_enc = m_right_enc;
 }
 
 void PubOdom::publishOdom()
@@ -159,7 +176,7 @@ void PubOdom::publishOdom()
 int main(int argc, char **argv)
 {
   //Initiate ROS
-  ros::init(argc, argv, "can2ros");
+  ros::init(argc, argv, "pubOdom");
 
   PubOdom pub_odom;
   ROS_INFO("Starting PubOdom");
