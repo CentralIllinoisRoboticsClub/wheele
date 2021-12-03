@@ -11,6 +11,7 @@ find_package(catkin REQUIRED COMPONENTS
   sensor_msgs
   std_msgs
   geometry_msgs
+  wheele_msgs
 )
 
 catkin_package(
@@ -36,6 +37,7 @@ include_directories(
 
 ## Declare a C++ executable
 add_executable(can2ros src/Can2Ros.cpp)
+add_dependencies(can2ros ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(can2ros

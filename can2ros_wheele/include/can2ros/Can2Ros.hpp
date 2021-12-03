@@ -9,6 +9,7 @@
 #include "sensor_msgs/Imu.h"
 #include "sensor_msgs/MagneticField.h"
 #include "geometry_msgs/Vector3.h"
+#include "wheele_msgs/Encoder.h"
 #include <vector>
 //#include "std_msgs/Float64.h"
 //#include <std_msgs/String.h>
@@ -29,11 +30,13 @@ private:
   ros::Publisher imu_pub_;
   ros::Publisher mag_pub_;
   ros::Publisher heading_pub_;
+  ros::Publisher enc_pub_;
   ros::Subscriber can_sub_;
 
   sensor_msgs::Imu imu;
   sensor_msgs::MagneticField magXYZ;
   sensor_msgs::Imu mag_imu;
+  wheele_msgs::Encoder enc;
 
   geometry_msgs::Vector3 accel;
   //std::vector<double> accel_covar; //What is the right type for ROS float64[9]?? boost::array< >?

@@ -30,6 +30,8 @@ Can2Ros::Can2Ros()
   mag_pub_ = nh_.advertise < sensor_msgs::MagneticField > ("magXYZ", 10);
   heading_pub_ = nh_.advertise < sensor_msgs::Imu > ("mag_imu", 10);
 
+  enc_pub_ = nh_.advertise < wheele_msgs::Encoder > ("encoders", 20);
+
   //Topic you want to subscribe
   // leddarCallback will run every time ros sees the topic /received_messages
   can_sub_ = nh_.subscribe("received_messages", 50, &Can2Ros::canCallback,
@@ -165,7 +167,9 @@ void Can2Ros::canCallback(const can_msgs::Frame &frame)
     {
       int16_t raw_left_enc = data_out[0];
       int16_t raw_right_enc = data_out[1];
-      int16_t raw_auto_cmd = data_out[2];
+      enc.left_enc = raw_left_enc;
+      enc.right_enc = raw_right_enc;
+      enc_pub_.publish(enc);
       break;
     }
     case BATTERY_CAN_ID: // 0x140
