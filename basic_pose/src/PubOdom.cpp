@@ -26,6 +26,7 @@ m_velx(0.0)
   m_odom_pub = m_nh.advertise<nav_msgs::Odometry>("odom", 50);
 
   m_enc_sub = m_nh.subscribe("encoders", 50, &PubOdom::encoderCallback, this);
+  m_imu_sub = m_nh.subscribe("imu", 50, &PubOdom::imuCallback, this);
 
   m_curTime = ros::Time::now();
   m_prevTime = m_curTime;
