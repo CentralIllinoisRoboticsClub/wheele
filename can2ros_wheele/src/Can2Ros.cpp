@@ -13,14 +13,17 @@
  *   The socket_can bridge turns /sent_messages into CAN
  **********************************************************************/
 
+// Received by the RPi
 #define RAW_RC_CAN_ID 0x101
 #define ENCODER_CAN_ID 0x105
-#define BATTERY_CAN_ID 0x140
 #define BUMPER_CAN_ID 0x121
-
 #define GYRO_CAN_ID 0x131
 #define ACCEL_CAN_ID 0x132
 #define COMPASS_CAN_ID 0x133
+#define BATTERY_CAN_ID 0x140
+
+// Sent by the RPi
+#define CMD_VEL_CAN_ID 0x301
 
 //Constructor
 Can2Ros::Can2Ros()
@@ -29,14 +32,20 @@ Can2Ros::Can2Ros()
   imu_pub_ = nh_.advertise < sensor_msgs::Imu > ("imu", 10);
   mag_pub_ = nh_.advertise < sensor_msgs::MagneticField > ("magXYZ", 10);
   heading_pub_ = nh_.advertise < sensor_msgs::Imu > ("mag_imu", 10);
-
   enc_pub_ = nh_.advertise < wheele_msgs::Encoder > ("encoders", 20);
+  canFrame_pub_ = nh_.advertise<can_msgs::Frame>("sent_messages", 5);
 
   //Topic you want to subscribe
-  // leddarCallback will run every time ros sees the topic /received_messages
+  cmd_sub_ = nh_.subscribe("cmd_vel", 5, &Can2Ros::cmdVelCallback,
+      this); //receive cmd_vel of type geometry_msgs::Twist
   can_sub_ = nh_.subscribe("received_messages", 50, &Can2Ros::canCallback,
       this); //receive CAN
 
+  nh_p  = ros::NodeHandle("~");
+  nh_p.param("rate_hz", rate_, 10); // cmd_vel will be sent out on CAN at this rate
+  nh_p.param("timeout_sec", timeout_sec_,1.0); //cmd_vel to CAN will be zero if no cmd_vel is received after timeout_sec
+  ROS_INFO("rate_hz = %d, timeout_sec = %0.1f", rate_, timeout_sec_);
+ 
   accel.x = 0;
   accel.y = 0;
   accel.z = 9.81; //NEED TO VERIFY SIGN, FOLLOW ENU CONVENTION
@@ -82,6 +91,11 @@ Can2Ros::Can2Ros()
 //Default destructor.
 Can2Ros::~Can2Ros()
 {
+}
+
+int Can2Ros::get_rate()
+{
+   return rate_;
 }
 
 int Can2Ros::convertCAN(const can_msgs::Frame &frame, int16_t data_out[4],
@@ -186,6 +200,54 @@ void Can2Ros::canCallback(const can_msgs::Frame &frame)
   }
 }
 
+void Can2Ros::cmdVelCallback(const geometry_msgs::Twist& cmd)
+{    
+  latest_cmd_vel = cmd;
+  cmd_vel_time = ros::Time::now();
+  // sendCmdVel(); // If you want to have cmd_vel from the planner control the rate
+}
+
+void Can2Ros::sendCmdVel()
+{
+  double vel = latest_cmd_vel.linear.x;
+  double yaw_rate_deg = latest_cmd_vel.angular.z * 180.0/M_PI;
+  if( (ros::Time::now() - cmd_vel_time).toSec() > timeout_sec_)
+  {
+    vel = 0;
+    yaw_rate_deg = 0;
+  }
+  int16_t vel_mm = int(vel*1000);
+  int16_t yaw_rate_decideg = int(yaw_rate_deg*10);
+  tx_can(CMD_VEL_CAN_ID, vel_mm, yaw_rate_decideg, 0, 0);
+}
+
+void Can2Ros::tx_can(uint16_t id, int16_t num1, int16_t num2, int16_t num3, int16_t num4)
+{
+  uint16_t raw1 = num1 + 32768;
+  uint16_t raw2 = num2 + 32768;
+  uint16_t raw3 = num3 + 32768;
+  uint16_t raw4 = num4 + 32768;
+
+  canFrame.id = id;
+  canFrame.header.stamp = ros::Time::now();
+
+  canFrame.data[0] = getByte(raw1,1);
+  canFrame.data[1] = getByte(raw1,0);
+  canFrame.data[2] = getByte(raw2,1);
+  canFrame.data[3] = getByte(raw2,0);
+  canFrame.data[4] = getByte(raw3,1);
+  canFrame.data[5] = getByte(raw3,0);
+  canFrame.data[6] = getByte(raw4,1);
+  canFrame.data[7] = getByte(raw4,0);
+
+  canFrame_pub_.publish(canFrame);
+}
+
+uint8_t Can2Ros::getByte(uint16_t x, unsigned int n)
+{
+  return (x >> 8*n) & 0xFF;
+}
+
 int main(int argc, char **argv)
 {
   //Initiate ROS
@@ -193,12 +255,13 @@ int main(int argc, char **argv)
 
   Can2Ros can2ros;
   ROS_INFO("Starting Can2Ros");
-  int loop_rate = 10;
+  int loop_rate = can2ros.get_rate();
   ros::Rate rate(loop_rate);
 
   while (ros::ok())
   {
     ros::spinOnce();
+    can2ros.sendCmdVel();
     rate.sleep();
   }
 
