@@ -157,6 +157,6 @@ dtoverlay=spi-bcm2835
 ```
 To use can in linux:
 ```
-sudo ip link set can0 up type can bitrate 500000
+sudo ip link set can0 up type can bitrate 666666 #Was 500000
 candump can0
 cansend can0 idh#dd.dd.dd.dd.dd.dd.dd.dd
